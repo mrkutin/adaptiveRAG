@@ -1,0 +1,5 @@
+aiogram==3.4.1
+langchain==0.1.12
+langchain-ollama==0.0.3
+python-dotenv==1.0.1
+pydantic-settings==2.2.1
