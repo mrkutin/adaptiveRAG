@@ -54,7 +54,6 @@ chain = prompt | llm | StrOutputParser()
 # Define our state
 class BotState(MessagesState):
     telegram_chat_id: int
-    telegram_message_id: int
 
 # Define our nodes
 async def answer_node(state: BotState) -> BotState:
@@ -125,8 +124,7 @@ async def handle_message(message: Message):
         # Initialize state
         initial_state = BotState(
             messages=[HumanMessage(content=message.text)],
-            telegram_chat_id=message.chat.id,
-            telegram_message_id=0  # Will be set in start_node
+            telegram_chat_id=message.chat.id
         )
         
         # Run the graph
