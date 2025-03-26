@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import TypedDict, Annotated, Sequence, Dict
+from typing import TypedDict, Annotated, Sequence
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import Message
@@ -8,7 +8,7 @@ from langchain_ollama import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
-from langgraph.graph import StateGraph
+from langgraph.graph import StateGraph, MessagesState, START, END
 
 from config import settings
 
@@ -52,41 +52,24 @@ prompt = ChatPromptTemplate.from_messages([
 chain = prompt | llm | StrOutputParser()
 
 # Define our state
-class BotState(TypedDict):
-    messages: Sequence[HumanMessage | AIMessage]
+class BotState(MessagesState):
     telegram_chat_id: int
     telegram_message_id: int
 
-# Dictionary to store states for each user
-user_states: Dict[int, BotState] = {}
-
 # Define our nodes
-async def start_node(state: BotState) -> BotState:
-    """Initialize the state and send initial message."""
+async def answer_node(state: BotState) -> BotState:
+    """Generate and stream the response."""
     try:
-        # Send initial "processing" message
+         # Send initial "processing" message
         processing_msg = await bot.send_message(
             chat_id=state["telegram_chat_id"],
             text="Processing your request..."
         )
-        
-        return {
-            **state,
-            "telegram_message_id": processing_msg.message_id
-        }
-    except Exception as e:
-        logger.error(f"Error in start_node: {str(e)}")
-        raise
 
-async def answer_node(state: BotState) -> BotState:
-    """Generate and stream the response."""
-    try:
         # Get the last user message from history
         last_message = state["messages"][-1].content
-        
-        # Initialize streaming variables
-        full_response = ""
         current_sentence = ""
+        full_response = ""
         
         # Stream the response
         async for chunk in chain.astream({"input": last_message}):
@@ -100,8 +83,8 @@ async def answer_node(state: BotState) -> BotState:
                     # Update the message with the accumulated response
                     await bot.edit_message_text(
                         chat_id=state["telegram_chat_id"],
-                        message_id=state["telegram_message_id"],
-                        text=full_response + "▌"
+                        message_id=processing_msg.message_id,
+                        text=full_response
                     )
         
         # Add any remaining text
@@ -109,84 +92,45 @@ async def answer_node(state: BotState) -> BotState:
             full_response += current_sentence
         
         # Add the AI response to message history
-        messages = list(state["messages"]) + [AIMessage(content=full_response)]
+        state["messages"].append(AIMessage(content=full_response))
         
-        return {
-            **state,
-            "messages": messages
-        }
+        return state
     except Exception as e:
         logger.error(f"Error in answer_node: {str(e)}")
         raise
 
-async def end_node(state: BotState) -> BotState:
-    """Finalize the response."""
-    try:
-        # Get the last AI message
-        last_ai_message = next(
-            (msg for msg in reversed(state["messages"]) 
-             if isinstance(msg, AIMessage)),
-            None
-        )
-        
-        if last_ai_message:
-            # Final update without the cursor
-            await bot.edit_message_text(
-                chat_id=state["telegram_chat_id"],
-                message_id=state["telegram_message_id"],
-                text=last_ai_message.content
-            )
-        return state
-    except Exception as e:
-        logger.error(f"Error in end_node: {str(e)}")
-        raise
+
 
 # Create the graph
 workflow = StateGraph(BotState)
 
 # Add nodes
-workflow.add_node("start", start_node)
 workflow.add_node("answer", answer_node)
-workflow.add_node("end", end_node)
 
 # Add edges
-workflow.add_edge("start", "answer")
-workflow.add_edge("answer", "end")
+workflow.add_edge(START, "answer")
+workflow.add_edge("answer", END)
 
-# Set the entry point
-workflow.set_entry_point("start")
 
 # Compile the graph
 app = workflow.compile()
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    # Reset state for the user
-    user_states[message.from_user.id] = {
-        "messages": [],
-        "telegram_chat_id": message.chat.id,
-        "telegram_message_id": 0
-    }
     await message.answer("Hello! Send me any message and I'll help you!")
 
 @dp.message()
 async def handle_message(message: Message):
     try:
-        # Get or create state for the user
-        if message.from_user.id not in user_states:
-            user_states[message.from_user.id] = {
-                "messages": [],
-                "telegram_chat_id": message.chat.id,
-                "telegram_message_id": 0
-            }
-        
-        # Update state with new message
-        user_states[message.from_user.id]["messages"].append(
-            HumanMessage(content=message.text)
+        # Initialize state
+        initial_state = BotState(
+            messages=[HumanMessage(content=message.text)],
+            telegram_chat_id=message.chat.id,
+            telegram_message_id=0  # Will be set in start_node
         )
         
-        # Run the graph with user's state
-        await app.ainvoke(user_states[message.from_user.id])
+        # Run the graph
+        await app.ainvoke(initial_state)
         
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}")
