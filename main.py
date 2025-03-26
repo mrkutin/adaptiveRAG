@@ -5,6 +5,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 from config import settings
 
@@ -29,12 +30,13 @@ logger.info(f"Log Level: {settings.log_level}")
 bot = Bot(token=settings.telegram_bot_token)
 dp = Dispatcher()
 
-# Initialize Ollama
+# Initialize Ollama with streaming enabled
 llm = OllamaLLM(
     base_url=settings.ollama_base_url,
     model=settings.ollama_model,
     temperature=settings.ollama_temperature,
-    timeout=settings.ollama_timeout
+    timeout=settings.ollama_timeout,
+    streaming=True
 )
 
 # Create a simple prompt
@@ -43,8 +45,8 @@ prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}")
 ])
 
-# Create the chain
-chain = prompt | llm
+# Create the chain with streaming
+chain = prompt | llm | StrOutputParser()
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
@@ -53,14 +55,29 @@ async def cmd_start(message: Message):
 @dp.message()
 async def handle_message(message: Message):
     try:
-        # Send "processing" message
+        # Send initial "processing" message
         processing_msg = await message.answer("Processing your request...")
+        full_response = ""
+        current_sentence = ""
         
-        # Get response from LLM
-        response = await chain.ainvoke({"input": message.text})
+        # Stream the response
+        async for chunk in chain.astream({"input": message.text}):
+            if chunk:
+                current_sentence += chunk
+                
+                # Check if we have a complete sentence (ends with punctuation)
+                if any(current_sentence.strip().endswith(p) for p in ['.', '!', '?', ':', ';']):
+                    full_response += current_sentence
+                    current_sentence = ""
+                    # Update the message with the accumulated response
+                    await processing_msg.edit_text(full_response + "▌")
         
-        # Send the response
-        await processing_msg.edit_text(response)
+        # Add any remaining text
+        if current_sentence:
+            full_response += current_sentence
+        
+        # Final update without the cursor
+        await processing_msg.edit_text(full_response)
         
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}")
