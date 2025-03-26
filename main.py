@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import TypedDict, Annotated, Sequence
+from typing import TypedDict, Annotated, Sequence, Dict
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import Message
@@ -54,11 +54,11 @@ chain = prompt | llm | StrOutputParser()
 # Define our state
 class BotState(TypedDict):
     messages: Sequence[HumanMessage | AIMessage]
-    current_message: str
     telegram_chat_id: int
     telegram_message_id: int
-    full_response: str
-    current_sentence: str
+
+# Dictionary to store states for each user
+user_states: Dict[int, BotState] = {}
 
 # Define our nodes
 async def start_node(state: BotState) -> BotState:
@@ -72,9 +72,7 @@ async def start_node(state: BotState) -> BotState:
         
         return {
             **state,
-            "telegram_message_id": processing_msg.message_id,
-            "full_response": "",
-            "current_sentence": ""
+            "telegram_message_id": processing_msg.message_id
         }
     except Exception as e:
         logger.error(f"Error in start_node: {str(e)}")
@@ -83,27 +81,40 @@ async def start_node(state: BotState) -> BotState:
 async def answer_node(state: BotState) -> BotState:
     """Generate and stream the response."""
     try:
+        # Get the last user message from history
+        last_message = state["messages"][-1].content
+        
+        # Initialize streaming variables
+        full_response = ""
+        current_sentence = ""
+        
         # Stream the response
-        async for chunk in chain.astream({"input": state["current_message"]}):
+        async for chunk in chain.astream({"input": last_message}):
             if chunk:
-                state["current_sentence"] += chunk
+                current_sentence += chunk
                 
                 # Check if we have a complete sentence
-                if any(state["current_sentence"].strip().endswith(p) for p in ['.', '!', '?', ':', ';']):
-                    state["full_response"] += state["current_sentence"]
-                    state["current_sentence"] = ""
+                if any(current_sentence.strip().endswith(p) for p in ['.', '!', '?', ':', ';']):
+                    full_response += current_sentence
+                    current_sentence = ""
                     # Update the message with the accumulated response
                     await bot.edit_message_text(
                         chat_id=state["telegram_chat_id"],
                         message_id=state["telegram_message_id"],
-                        text=state["full_response"] + "▌"
+                        text=full_response + "▌"
                     )
         
         # Add any remaining text
-        if state["current_sentence"]:
-            state["full_response"] += state["current_sentence"]
+        if current_sentence:
+            full_response += current_sentence
         
-        return state
+        # Add the AI response to message history
+        messages = list(state["messages"]) + [AIMessage(content=full_response)]
+        
+        return {
+            **state,
+            "messages": messages
+        }
     except Exception as e:
         logger.error(f"Error in answer_node: {str(e)}")
         raise
@@ -111,12 +122,20 @@ async def answer_node(state: BotState) -> BotState:
 async def end_node(state: BotState) -> BotState:
     """Finalize the response."""
     try:
-        # Final update without the cursor
-        await bot.edit_message_text(
-            chat_id=state["telegram_chat_id"],
-            message_id=state["telegram_message_id"],
-            text=state["full_response"]
+        # Get the last AI message
+        last_ai_message = next(
+            (msg for msg in reversed(state["messages"]) 
+             if isinstance(msg, AIMessage)),
+            None
         )
+        
+        if last_ai_message:
+            # Final update without the cursor
+            await bot.edit_message_text(
+                chat_id=state["telegram_chat_id"],
+                message_id=state["telegram_message_id"],
+                text=last_ai_message.content
+            )
         return state
     except Exception as e:
         logger.error(f"Error in end_node: {str(e)}")
@@ -142,23 +161,32 @@ app = workflow.compile()
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
+    # Reset state for the user
+    user_states[message.from_user.id] = {
+        "messages": [],
+        "telegram_chat_id": message.chat.id,
+        "telegram_message_id": 0
+    }
     await message.answer("Hello! Send me any message and I'll help you!")
 
 @dp.message()
 async def handle_message(message: Message):
     try:
-        # Initialize state
-        initial_state = {
-            "messages": [],
-            "current_message": message.text,
-            "telegram_chat_id": message.chat.id,
-            "telegram_message_id": 0,  # Will be set in start_node
-            "full_response": "",
-            "current_sentence": ""
-        }
+        # Get or create state for the user
+        if message.from_user.id not in user_states:
+            user_states[message.from_user.id] = {
+                "messages": [],
+                "telegram_chat_id": message.chat.id,
+                "telegram_message_id": 0
+            }
         
-        # Run the graph
-        await app.ainvoke(initial_state)
+        # Update state with new message
+        user_states[message.from_user.id]["messages"].append(
+            HumanMessage(content=message.text)
+        )
+        
+        # Run the graph with user's state
+        await app.ainvoke(user_states[message.from_user.id])
         
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}")
