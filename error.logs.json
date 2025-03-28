@@ -1,0 +1,149 @@
+[
+  {
+    "_index": "bus-prod-info-02-19",
+    "_id": "4JETIJUBcCMWdDveOiLp",
+    "_version": 1,
+    "_score": null,
+    "_source": {
+      "level": "error",
+      "time": "2025-02-19T21:18:01.919Z",
+      "pid": 18,
+      "hostname": "esb-realization-orders-generator-7b9b8b9f94-bl7xq",
+      "nodeID": "esb-realization-orders-generator-7b9b8b9f94-bl7xq-18",
+      "ns": "prod",
+      "mod": "broker",
+      "msg": "Action realization.orders.generator.takeKeys error with payload: {\"bucket\":\"realization.orders.generator\",\"limit\":30}, error: RequestTimeoutError: Request is timed out when call 'realization.orders.generator.takeKeys' action on 'esb-realization-orders-generator-7b9b8b9f94-7kx6n-19' node."
+    },
+    "fields": {
+      "time": [
+        "2025-02-19T21:18:01.919Z"
+      ]
+    },
+    "highlight": {
+      "level": [
+        "@opensearch-dashboards-highlighted-field@error@/opensearch-dashboards-highlighted-field@"
+      ]
+    },
+    "sort": [
+      1739999881919
+    ]
+  },
+  {
+    "_index": "bus-prod-info-02-19",
+    "_id": "iZEVIJUBcCMWdDve-iO4",
+    "_version": 1,
+    "_score": null,
+    "_source": {
+      "level": "error",
+      "time": "2025-02-19T21:21:03.086Z",
+      "pid": 19,
+      "hostname": "esb-clients-crm-generator-566d9ff8c-pw6zv",
+      "nodeID": "esb-clients-crm-generator-566d9ff8c-pw6zv-19",
+      "ns": "prod",
+      "mod": "transporter",
+      "msg": "Redis-pub errorread ETIMEDOUT"
+    },
+    "fields": {
+      "time": [
+        "2025-02-19T21:21:03.086Z"
+      ]
+    },
+    "highlight": {
+      "level": [
+        "@opensearch-dashboards-highlighted-field@error@/opensearch-dashboards-highlighted-field@"
+      ]
+    },
+    "sort": [
+      1740000063086
+    ]
+  },
+  {
+    "_index": "bus-prod-info-02-24",
+    "_id": "_EgDOJUB9QkZojNvTImh",
+    "_version": 1,
+    "_score": null,
+    "_source": {
+      "level": "error",
+      "time": "2025-02-24T12:51:30.769Z",
+      "pid": 18,
+      "hostname": "esb-one-c-erpuh-6bd79cb88b-kb24c",
+      "nodeID": "esb-one-c-erpuh-6bd79cb88b-kb24c-18",
+      "ns": "prod",
+      "mod": "one-c.erpuh",
+      "svc": "one-c.erpuh",
+      "msg": "ONE-C upload error in table magento-order-one-c-topic with payload: {\n  \"number\": \"8b5eb958-f2ac-11ef-affa-0242be5a4866\",\n  \"timestamp\": \"24.02.2025T15:40:35\",\n  \"event\": \"create\",\n  \"data\": {\n    \"OrderId\": \"25-397746\",\n    \"OrderStatusID\": 0,\n    \"CreatedDateTime\": \"2025-02-24 12:40:34\",\n    \"AmountOrder\": 270.45,\n    \"PaymentMethod\": 1,\n    \"ShippingMethod\": 0,\n    \"FirstName\": \"Анастасия\",\n    \"PaternalName\": \"Александровна\",\n    \"LastName\": \"Пачина\",\n    \"PhoneNumber\": \"+79210888965\",\n    \"Email\": \"pachinabibl@mail.ru\",\n    \"Address\": \"165210,Россия,Архангельская область,Архангельская обл, рп Октябрьский,ул Ленина, д 49,27\",\n    \"PickupPointId\": null,\n    \"PickupPointName\": \"\",\n    \"Comment\": null,\n    \"DeliveryPrice\": 1,\n    \"DeliveryVatAmount\": 0.17,\n    \"DiscountPriceOrder\": -47.55,\n    \"Fias\": \"eaa1abfa-a417-405f-8bb4-b8ff58436206\",\n    \"Region\": \"294277aa-e25d-428c-95ad-46719c4ddb44\",\n    \"CorrectNum\": null,\n    \"Lines\": [\n      {\n        \"ItemId\": \"NM0091535\",\n        \"ContentId\": \"50-1480-01\",\n        \"NameItem\": \"ВПР. ФИОКО. СТАТГРАД. 24 варианта. Русский язык. Математика. История. Биология. 5 класс. ТЗ. ФГОС (карты по состоянию на 01.01.2022)\",\n        \"Quantity\": 1,\n        \"UnitPriceInclTax\": 317,\n        \"DiscountPrice\": 47.55,\n        \"Amount\": 269.45,\n        \"VatAmount\": 24.5\n      }\n    ],\n    \"CompanyIdAx\": null,\n    \"CompanyName\": null,\n    \"CompanyINN\": null,\n    \"CompanyKPP\": null,\n    \"InvoiceLink\": null,\n    \"CompanyContractIdAX\": null\n  },\n  \"recid\": \"25-397746\"\n} , error: MoleculerServerError: ONE-C upload error in table magento-order-one-c-topic with payload: {\n  \"number\": \"8b5eb958-f2ac-11ef-affa-0242be5a4866\",\n  \"timestamp\": \"24.02.2025T15:40:35\",\n  \"event\": \"create\",\n  \"data\": {\n    \"OrderId\": \"25-397746\",\n    \"OrderStatusID\": 0,\n    \"CreatedDateTime\": \"2025-02-24 12:40:34\",\n    \"AmountOrder\": 270.45,\n    \"PaymentMethod\": 1,\n    \"ShippingMethod\": 0,\n    \"FirstName\": \"Анастасия\",\n    \"PaternalName\": \"Александровна\",\n    \"LastName\": \"Пачина\",\n    \"PhoneNumber\": \"+79210888965\",\n    \"Email\": \"pachinabibl@mail.ru\",\n    \"Address\": \"165210,Россия,Архангельская область,Архангельская обл, рп Октябрьский,ул Ленина, д 49,27\",\n    \"PickupPointId\": null,\n    \"PickupPointName\": \"\",\n    \"Comment\": null,\n    \"DeliveryPrice\": 1,\n    \"DeliveryVatAmount\": 0.17,\n    \"DiscountPriceOrder\": -47.55,\n    \"Fias\": \"eaa1abfa-a417-405f-8bb4-b8ff58436206\",\n    \"Region\": \"294277aa-e25d-428c-95ad-46719c4ddb44\",\n    \"CorrectNum\": null,\n    \"Lines\": [\n      {\n        \"ItemId\": \"NM0091535\",\n        \"ContentId\": \"50-1480-01\",\n        \"NameItem\": \"ВПР. ФИОКО. СТАТГРАД. 24 варианта. Русский язык. Математика. История. Биология. 5 класс. ТЗ. ФГОС (карты по состоянию на 01.01.2022)\",\n        \"Quantity\": 1,\n        \"UnitPriceInclTax\": 317,\n        \"DiscountPrice\": 47.55,\n        \"Amount\": 269.45,\n        \"VatAmount\": 24.5\n      }\n    ],\n    \"CompanyIdAx\": null,\n    \"CompanyName\": null,\n    \"CompanyINN\": null,\n    \"CompanyKPP\": null,\n    \"InvoiceLink\": null,\n    \"CompanyContractIdAX\": null\n  },\n  \"recid\": \"25-397746\"\n} , error: AxiosError: timeout of 20000ms exceeded"
+    },
+    "fields": {
+      "time": [
+        "2025-02-24T12:51:30.769Z"
+      ]
+    },
+    "highlight": {
+      "level": [
+        "@opensearch-dashboards-highlighted-field@error@/opensearch-dashboards-highlighted-field@"
+      ]
+    },
+    "sort": [
+      1740401490769
+    ]
+  },
+  {
+    "_index": "bus-prod-info-02-24",
+    "_id": "REGlNpUB9QkZojNvNkJj",
+    "_version": 1,
+    "_score": null,
+    "_source": {
+      "level": "error",
+      "time": "2025-02-24T06:29:10.839Z",
+      "pid": 18,
+      "hostname": "esb-mindbox-767bd54c4d-84k68",
+      "nodeID": "esb-mindbox-767bd54c4d-84k68-18",
+      "ns": "prod",
+      "mod": "mindbox",
+      "svc": "mindbox",
+      "msg": "Mindbox upload error: MoleculerServerError: Mindbox upload server error in topic id-authorize-customer-topic with payload: {\n  \"topic\": \"id-authorize-customer-topic\",\n  \"key\": \"7da79e56-d448-43a9-b68f-33b440658cdc\",\n  \"message\": {\n    \"customer\": {\n      \"ids\": {\n        \"referralCustomerCode\": \"7da79e56-d448-43a9-b68f-33b440658cdc\",\n        \"websiteID\": \"7da79e56-d448-43a9-b68f-33b440658cdc\"\n      },\n      \"email\": \"fedoseeva-olga@bk.ru\"\n    },\n    \"pointOfContact\": \"Вебсайт ГК «Просвещение», новый\"\n  }\n}, error: AxiosError: Request failed with status code 503"
+    },
+    "fields": {
+      "time": [
+        "2025-02-24T06:29:10.839Z"
+      ]
+    },
+    "highlight": {
+      "level": [
+        "@opensearch-dashboards-highlighted-field@error@/opensearch-dashboards-highlighted-field@"
+      ]
+    },
+    "sort": [
+      1740378550839
+    ]
+  },
+  {
+    "_index": "bus-prod-info-02-16",
+    "_id": "jB_aEJUBcCMWdDveGuQZ",
+    "_version": 1,
+    "_score": null,
+    "_source": {
+      "level": "error",
+      "time": "2025-02-16T22:21:21.821Z",
+      "pid": 19,
+      "hostname": "esb-incoming-orders-generator-578d75498c-wlg52",
+      "nodeID": "esb-incoming-orders-generator-578d75498c-wlg52-19",
+      "ns": "prod",
+      "mod": "transit",
+      "msg": "Unable to send 'incoming.orders.generator.search' request with requestID '93f4e268-d4d1-4911-ba3a-680449885731' to 'esb-incoming-orders-generator-578d75498c-cwdwz-19' node.{\"code\":502,\"type\":\"BAD_GATEWAY\",\"retryable\":true}"
+    },
+    "fields": {
+      "time": [
+        "2025-02-16T22:21:21.821Z"
+      ]
+    },
+    "highlight": {
+      "level": [
+        "@opensearch-dashboards-highlighted-field@error@/opensearch-dashboards-highlighted-field@"
+      ]
+    },
+    "sort": [
+      1739744481821
+    ]
+  }
+]
