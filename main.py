@@ -39,7 +39,8 @@ llm = OllamaLLM(
     model=settings.ollama_model,
     temperature=settings.ollama_temperature,
     timeout=settings.ollama_timeout,
-    streaming=True
+    streaming=True,
+    max_tokens=settings.ollama_max_tokens
 )
 
 # Create a simple prompt

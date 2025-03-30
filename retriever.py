@@ -10,21 +10,22 @@ from langchain.chains.query_constructor.base import (
     get_query_constructor_prompt,
 )
 from langchain.chains.query_constructor.schema import AttributeInfo
-from search.translator import CustomOpenSearchTranslator
+from translator import CustomOpenSearchTranslator
 from pprint import pformat
+from config import settings
 
 class OpenSearchRetriever(BaseRetriever):
     """A custom retriever that searches documents in OpenSearch with query translation."""
 
-    # OpenSearch configuration
-    host: str = Field(default="opensearch-data.prod.prosv.yc")
-    port: int = Field(default=9200)
-    username: str = Field(default="bus-admin")
-    password: str = Field(default="WZJ7WKimoLFWCzV")
-    index: str = Field(default="bus-prod-info-*")
-    use_ssl: bool = Field(default=True)
-    verify_certs: bool = Field(default=False)
-    query_size: int = Field(default=10)
+    # OpenSearch configuration from settings
+    host: str = Field(default=settings.opensearch_host)
+    port: int = Field(default=settings.opensearch_port)
+    username: str = Field(default=settings.opensearch_username)
+    password: str = Field(default=settings.opensearch_password)
+    index: str = Field(default=settings.opensearch_index)
+    use_ssl: bool = Field(default=settings.opensearch_use_ssl)
+    verify_certs: bool = Field(default=settings.opensearch_verify_certs)
+    query_size: int = Field(default=settings.opensearch_query_size)
     
     # Use private attributes
     _client: OpenSearch = PrivateAttr()
@@ -34,13 +35,22 @@ class OpenSearchRetriever(BaseRetriever):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        # Initialize OpenSearch client
+        self._client = OpenSearch(
+            hosts=[{'host': self.host, 'port': self.port}],
+            http_auth=(self.username, self.password) if self.username else None,
+            use_ssl=self.use_ssl,
+            verify_certs=self.verify_certs,
+            ssl_show_warn=False
+        )
+        
         # Initialize query translation components
         query_model = OllamaLLM(
-            base_url="http://127.0.0.1:11434",
-            model="qwen2.5-coder",
-            temperature=0,
-            timeout=30,
-            max_tokens=8192,
+            base_url=settings.retriever_ollama_base_url,
+            model=settings.retriever_ollama_model,
+            temperature=settings.retriever_ollama_temperature,
+            timeout=settings.retriever_ollama_timeout,
+            max_tokens=settings.retriever_ollama_max_tokens,
         )
 
         # Define query contents
@@ -163,15 +173,6 @@ class OpenSearchRetriever(BaseRetriever):
         self._query_constructor = constructor_prompt | query_model | output_parser
         self._translator = CustomOpenSearchTranslator()
 
-        # Initialize OpenSearch client
-        self._client = OpenSearch(
-            hosts=[{'host': self.host, 'port': self.port}],
-            http_auth=(self.username, self.password) if self.username else None,
-            use_ssl=self.use_ssl,
-            verify_certs=self.verify_certs,
-            ssl_show_warn=False
-        )
-        
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> List[Document]:
@@ -251,7 +252,6 @@ if __name__ == "__main__":
             # print(f"Content: {pformat(doc.page_content)}")
             print(f"Metadata: {pformat(doc.metadata)}")
             print("--------------------------------")
-    
     
     
     
