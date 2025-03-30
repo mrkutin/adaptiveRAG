@@ -136,8 +136,6 @@ constructor_prompt = get_query_constructor_prompt(
 
 # # Instead of trying to print the formatted prompt, let's just use it
 output_parser = StructuredQueryOutputParser.from_components()
-translator = OpenSearchTranslator()
-
 query_constructor = constructor_prompt | query_model | output_parser 
 
 
