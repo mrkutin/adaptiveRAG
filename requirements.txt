@@ -9,3 +9,4 @@ opensearch-py==2.8.0
 langchain_qdrant
 qdrant_client
 fastembed
+rank_bm25
