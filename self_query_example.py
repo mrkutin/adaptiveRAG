@@ -6,8 +6,6 @@ from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain_ollama import OllamaLLM
 
 
-from langchain_community.vectorstores import OpenSearchVectorSearch
-from langchain.retrievers.self_query.base import SelfQueryRetriever
 from langchain_community.query_constructors.opensearch import OpenSearchTranslator
 from pprint import pformat
 
