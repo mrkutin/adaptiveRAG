@@ -222,8 +222,42 @@ class OpenSearchRetriever(BaseRetriever):
 # Example usage:
 if __name__ == "__main__":
     retriever = OpenSearchRetriever()
-    results = retriever.invoke("What are mindbox errors in prod this week?")
-    for doc in results:
-        # print(f"Content: {pformat(doc.page_content)}")
-        print(f"Metadata: {pformat(doc.metadata)}")
+    
+    tests = [
+        "What are errors in prod today?",
+        "What are Mindbox upload server errors in topic id-authorize-customer-topic?",
+        "What are errors in prod last hour?",
+        "What are errors in prod last 20 hours?",
+        "What is wrong with order PSV-745559?",
+        "What is wrong with order PSV-737844-К0015742?",
+        "What happened with item NM0086817 on test?",
+        "What are steps of item NM0098877?",
+        "What are errors in prod from 2025-03-20 to 2025-03-21?",
+        "What are Mindbox upload errors in test from 2025-03-20 10:00:00 to 2025-03-21 10:00:00?",
+        "What happened with order PSV-745559 from 2025-03-20 10:00:00 to 2025-03-21 11:35:56?",
+        "What are logs from 16:00:00 to now?",
+        "What are logs on prod from 16:35:11 to 16:36:56?",
+        "What are warnings in prod this month?",
+        "What are errors in test last month?",
+        "What are Mindbox upload errors in test this week?",
+        "What are info messages in prod last week?",
+    ]
+
+    for test in tests:
+        print(f"Test: {test}")
         print("--------------------------------")
+        results = retriever.invoke(test)
+        for doc in results:
+            # print(f"Content: {pformat(doc.page_content)}")
+            print(f"Metadata: {pformat(doc.metadata)}")
+            print("--------------------------------")
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
