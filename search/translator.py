@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Union
+from typing import Dict, Union
 from langchain_core.structured_query import (
     Comparator,
     Comparison,

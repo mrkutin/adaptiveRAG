@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -10,7 +10,7 @@ from langchain.chains.query_constructor.base import (
     get_query_constructor_prompt,
 )
 from langchain.chains.query_constructor.schema import AttributeInfo
-from translator import CustomOpenSearchTranslator
+from search.translator import CustomOpenSearchTranslator
 from pprint import pformat
 
 class OpenSearchRetriever(BaseRetriever):
@@ -222,8 +222,8 @@ class OpenSearchRetriever(BaseRetriever):
 # Example usage:
 if __name__ == "__main__":
     retriever = OpenSearchRetriever()
-    results = retriever.invoke("What are order posting info in prod this week?")
+    results = retriever.invoke("What are mindbox errors in prod this week?")
     for doc in results:
-        print(f"Content: {doc.page_content}")
-        print(f"Metadata: {doc.metadata}")
-        print("---")
+        # print(f"Content: {pformat(doc.page_content)}")
+        print(f"Metadata: {pformat(doc.metadata)}")
+        print("--------------------------------")
