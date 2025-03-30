@@ -190,6 +190,7 @@ class OpenSearchRetriever(BaseRetriever):
         print("--------------------------------")
         opensearch_query = self._translator.visit_structured_query(structured_query)
         print(f"OpenSearch query: {pformat(opensearch_query)}")
+        print("--------------------------------")
         # Execute search
         result = self._client.search(
             index=self.index,
@@ -221,7 +222,7 @@ class OpenSearchRetriever(BaseRetriever):
 # Example usage:
 if __name__ == "__main__":
     retriever = OpenSearchRetriever()
-    results = retriever.invoke("What are Mindbox upload errors in test this week?")
+    results = retriever.invoke("What are order posting info in prod this week?")
     for doc in results:
         print(f"Content: {doc.page_content}")
         print(f"Metadata: {doc.metadata}")
