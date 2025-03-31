@@ -27,6 +27,13 @@ class OpenSearchRetriever(BaseRetriever):
     verify_certs: bool = Field(default=settings.opensearch_verify_certs)
     query_size: int = Field(default=settings.opensearch_query_size)
     
+    # Ollama configuration for query translation
+    ollama_base_url: str = Field(default=settings.retriever_ollama_base_url)
+    ollama_model: str = Field(default=settings.retriever_ollama_model)
+    ollama_temperature: float = Field(default=settings.retriever_ollama_temperature)
+    ollama_timeout: int = Field(default=settings.retriever_ollama_timeout)
+    ollama_max_tokens: int = Field(default=settings.retriever_ollama_max_tokens)
+    
     # Use private attributes
     _client: OpenSearch = PrivateAttr()
     _query_constructor = PrivateAttr()
@@ -46,11 +53,11 @@ class OpenSearchRetriever(BaseRetriever):
         
         # Initialize query translation components
         query_model = OllamaLLM(
-            base_url=settings.retriever_ollama_base_url,
-            model=settings.retriever_ollama_model,
-            temperature=settings.retriever_ollama_temperature,
-            timeout=settings.retriever_ollama_timeout,
-            max_tokens=settings.retriever_ollama_max_tokens,
+            base_url=self.ollama_base_url,
+            model=self.ollama_model,
+            temperature=self.ollama_temperature,
+            timeout=self.ollama_timeout,
+            max_tokens=self.ollama_max_tokens,
         )
 
         # Define query contents
@@ -200,6 +207,8 @@ class OpenSearchRetriever(BaseRetriever):
                 "size": self.query_size
             }
         )
+
+        print(f"result length: {len(result['hits']['hits'])}")
         
         # Convert OpenSearch results to Documents
         docs = []

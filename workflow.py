@@ -7,8 +7,10 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, MessagesState, START, END
+from langchain import hub
 
 from config import settings
+from retriever import OpenSearchRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ class ChatChain:
     """Class to handle chat processing logic."""
     def __init__(self, bot: Bot):
         self.bot = bot
+        self.retriever = OpenSearchRetriever()
         self.llm = OllamaLLM(
             base_url=settings.ollama_base_url,
             model=settings.ollama_model,
@@ -30,30 +33,58 @@ class ChatChain:
             streaming=True,
             max_tokens=settings.ollama_max_tokens
         )
-        
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful AI assistant. Provide clear and concise answers."),
-            ("human", "{input}")
-        ])
-        
+        self.prompt = prompt = hub.pull("rlm/rag-prompt")
         self.chain = self.prompt | self.llm | StrOutputParser()
     
+    async def retrieve_documents(self, state: ChatState) -> ChatState:
+        """Retrieve relevant documents for the query."""
+        try:
+            msg = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="Retrieving documents..."
+            )
+
+            # Get the last user message
+            query = state["messages"][-1].content
+            print(f"================ CHAIN QUERY: {query}")
+            
+            # Retrieve documents
+            docs = self.retriever.invoke(query)
+            await self.bot.edit_message_text(
+                            chat_id=state["telegram_chat_id"],
+                            message_id=msg.message_id,
+                            text=f"Retrieved {len(docs)} documents"
+                        )
+            # Update state with retrieved documents
+            state["documents"] = docs
+            
+            return state
+        except Exception as e:
+            logger.error(f"Error in retrieve_documents: {str(e)}")
+            raise
+    
+    def format_docs(self, docs):
+        return "\n\n".join(doc.page_content for doc in docs)
+
     async def process_message(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
         try:
+            # Get the user message from history
+            last_message = state["messages"][-1].content
+            first_message = state["messages"][0].content
+
             # Send initial "processing" message
-            processing_msg = await self.bot.send_message(
+            msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text="Processing your request..."
+                text=f"Answering your question: {first_message}"
             )
 
-            # Get the last user message from history
-            last_message = state["messages"][-1].content
             current_sentence = ""
             full_response = ""
             
             # Stream the response
-            async for chunk in self.chain.astream({"input": last_message}):
+            formatted_docs = self.format_docs(state["documents"])
+            async for chunk in self.chain.astream({"context": formatted_docs, "question": first_message}):
                 if chunk:
                     current_sentence += chunk
                     
@@ -64,7 +95,7 @@ class ChatChain:
                         # Update the message with the accumulated response
                         await self.bot.edit_message_text(
                             chat_id=state["telegram_chat_id"],
-                            message_id=processing_msg.message_id,
+                            message_id=msg.message_id,
                             text=full_response
                         )
             
@@ -87,10 +118,12 @@ class WorkflowGraph:
         self.workflow = StateGraph(ChatState)
         
         # Add nodes
+        self.workflow.add_node("retrieve", self.chat_chain.retrieve_documents)
         self.workflow.add_node("answer", self.chat_chain.process_message)
         
         # Add edges
-        self.workflow.add_edge(START, "answer")
+        self.workflow.add_edge(START, "retrieve")
+        self.workflow.add_edge("retrieve", "answer")
         self.workflow.add_edge("answer", END)
         
         # Compile the graph

@@ -44,7 +44,7 @@ result = client.search(index="bus-prod-info-*", body={
     }
 })
 
-print(result)
+print(f"result length: {len(result['hits']['hits'])}")
 
 """ Came from the opensearch translator
 ('mindbox upload error',
