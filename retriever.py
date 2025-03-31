@@ -210,7 +210,6 @@ class OpenSearchRetriever(BaseRetriever):
         )
 
         print(f"result length: {len(result['hits']['hits'])}")
-        print(f"top 2 hits: {result['hits']['hits'][0]['_source']['msg']}\n{result['hits']['hits'][1]['_source']['msg']}")
         
         # Convert OpenSearch results to Documents
         docs = []
