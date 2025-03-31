@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     
     # Ollama settings
     ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='OLLAMA_BASE_URL')
-    ollama_model: str = Field(default="mistral", env='OLLAMA_MODEL')
+    ollama_model: str = Field(default="llama3.1", env='OLLAMA_MODEL')
     ollama_temperature: float = Field(default=0.7, env='OLLAMA_TEMPERATURE')
     ollama_timeout: int = Field(default=30, env='OLLAMA_TIMEOUT')
     ollama_max_tokens: int = Field(default=32768, env='OLLAMA_MAX_TOKENS')

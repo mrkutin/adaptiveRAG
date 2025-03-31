@@ -7,7 +7,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langchain import hub
+from langchain_core.prompts import ChatPromptTemplate
+
 
 from config import settings
 from retriever import OpenSearchRetriever
@@ -32,8 +33,21 @@ class ChatChain:
             timeout=settings.ollama_timeout,
             streaming=True,
             max_tokens=settings.ollama_max_tokens
+            # temperature=0.1,    # Low temperature for consistent pattern matching
+            # top_k=3,           # Very limited options for precise matching
+            # top_p=0.1,         # High precision in pattern identification
+            # num_ctx=8192,      # Large context to analyze many logs at once
+            # repeat_penalty=1.2  # Higher penalty to avoid repetitive patterns
         )
-        self.prompt = prompt = hub.pull("rlm/rag-prompt")
+        self.prompt = ChatPromptTemplate.from_template(
+            """
+                Count the number of context documents.
+                Question: {question} 
+                Context: {context} 
+                Answer:
+            """
+        )
+
         self.chain = self.prompt | self.llm | StrOutputParser()
     
     async def retrieve_documents(self, state: ChatState) -> ChatState:
@@ -132,3 +146,7 @@ class WorkflowGraph:
     async def process(self, initial_state: ChatState):
         """Process a message through the workflow."""
         return await self.app.ainvoke(initial_state) 
+    
+
+
+# print(ChatChain(bot=Bot(token=settings.telegram_bot_token)).prompt.format(question="What are Mindbox upload server errors in topic id-authorize-customer-topic?", context=))
