@@ -9,6 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph import StateGraph, MessagesState, START, END
+from langchain_core.documents import Document
 
 from config import settings
 
@@ -23,6 +24,7 @@ class ChatState(MessagesState):
     """State for the chat workflow."""
     telegram_chat_id: int
     messages: Annotated[Sequence[HumanMessage | AIMessage], "messages"]
+    documents: Annotated[Sequence[Document], "documents"]
 
 class ChatChain:
     """Class to handle chat processing logic."""
