@@ -15,6 +15,15 @@ from retriever import OpenSearchRetriever
 
 logger = logging.getLogger(__name__)
 
+
+class GradeDocuments(BaseModel):
+    """Binary score for relevance check on retrieved documents."""
+
+    binary_score: str = Field(
+        description="Documents are relevant to the question, 'yes' or 'no'"
+    )
+
+
 class ChatState(MessagesState):
     """State for the chat workflow."""
     telegram_chat_id: int
@@ -26,7 +35,7 @@ class ChatChain:
     def __init__(self, bot: Bot):
         self.bot = bot
         self.opensearch_retriever = OpenSearchRetriever()
-        self.llm = OllamaLLM(
+        self.answer_llm = OllamaLLM(
             base_url=settings.ollama_base_url,
             model=settings.ollama_model,
             temperature=settings.ollama_temperature,
@@ -62,7 +71,7 @@ class ChatChain:
         )
 
 
-        self.answer_chain = self.answer_prompt | self.llm | StrOutputParser()
+        self.answer_chain = self.answer_prompt | self.answer_llm | StrOutputParser()
     
     async def retrieve_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""
