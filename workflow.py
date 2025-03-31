@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.prompts import ChatPromptTemplate
-
+from langchain.prompts import PromptTemplate
 
 from config import settings
 from retriever import OpenSearchRetriever
@@ -39,14 +39,35 @@ class ChatChain:
             # num_ctx=8192,      # Large context to analyze many logs at once
             # repeat_penalty=1.2  # Higher penalty to avoid repetitive patterns
         )
-        self.prompt = ChatPromptTemplate.from_template(
-            """
-                Count the number of context documents.
-                Question: {question} 
-                Context: {context} 
-                Answer:
+        # self.prompt = ChatPromptTemplate.from_template(
+        #     """
+        #         Count the number of context documents.
+        #         Question: {question} 
+        #         Context: {context} 
+        #         Answer:
+        #     """
+        # )
+
+        self.prompt = PromptTemplate(
+            input_variables=["question", "context"],
+            template="""
+            Based on the user's query and the logs provided, determine the appropriate response.
+
+            USER QUESTION: {question}
+
+            LOGS CONTEXT:
+            {context}
+
+            Please provide:
+            1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
+            2. A concise description of what these logs represent, suitable for a business user.
+            3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
+            4. Exact IDs affected by the error, if applicable.
+
+            Focus on providing a clear and direct response to the user's question, supplemented by technical insights when necessary.
             """
         )
+
 
         self.chain = self.prompt | self.llm | StrOutputParser()
     
