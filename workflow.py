@@ -25,7 +25,7 @@ class ChatChain:
     """Class to handle chat processing logic."""
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.retriever = OpenSearchRetriever()
+        self.opensearch_retriever = OpenSearchRetriever()
         self.llm = OllamaLLM(
             base_url=settings.ollama_base_url,
             model=settings.ollama_model,
@@ -39,16 +39,9 @@ class ChatChain:
             # num_ctx=8192,      # Large context to analyze many logs at once
             # repeat_penalty=1.2  # Higher penalty to avoid repetitive patterns
         )
-        # self.prompt = ChatPromptTemplate.from_template(
-        #     """
-        #         Count the number of context documents.
-        #         Question: {question} 
-        #         Context: {context} 
-        #         Answer:
-        #     """
-        # )
+        
 
-        self.prompt = PromptTemplate(
+        self.answer_prompt = PromptTemplate(
             input_variables=["question", "context"],
             template="""
             Based on the user's query and the logs provided, determine the appropriate response.
@@ -69,7 +62,7 @@ class ChatChain:
         )
 
 
-        self.chain = self.prompt | self.llm | StrOutputParser()
+        self.answer_chain = self.answer_prompt | self.llm | StrOutputParser()
     
     async def retrieve_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""
@@ -84,7 +77,7 @@ class ChatChain:
             print(f"================ CHAIN QUERY: {query}")
             
             # Retrieve documents
-            docs = self.retriever.invoke(query)
+            docs = self.opensearch_retriever.invoke(query)
             await self.bot.edit_message_text(
                             chat_id=state["telegram_chat_id"],
                             message_id=msg.message_id,
@@ -98,14 +91,40 @@ class ChatChain:
             logger.error(f"Error in retrieve_documents: {str(e)}")
             raise
     
-    def format_docs(self, docs):
-        return "\n\n".join(doc.page_content for doc in docs)
+    def grade_documents(self, state):
+        """
+        Determines whether the retrieved documents are relevant to the question.
 
-    async def process_message(self, state: ChatState) -> ChatState:
+        Args:
+            state (dict): The current graph state
+
+        Returns:
+            state (dict): Updates documents key with only filtered relevant documents
+        """
+
+        print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
+        question = state["question"]
+        documents = state["documents"]
+
+        # Score each doc
+        filtered_docs = []
+        for d in documents:
+            score = self.retrieval_grader.invoke(
+                {"question": question, "document": d.page_content}
+            )
+            grade = score.binary_score
+            if grade == "yes":
+                print("---GRADE: DOCUMENT RELEVANT---")
+                filtered_docs.append(d)
+            else:
+                print("---GRADE: DOCUMENT NOT RELEVANT---")
+                continue
+        return {"documents": filtered_docs, "question": question}
+
+    async def answer_question(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
         try:
             # Get the user message from history
-            last_message = state["messages"][-1].content
             first_message = state["messages"][0].content
 
             # Send initial "processing" message
@@ -118,8 +137,8 @@ class ChatChain:
             full_response = ""
             
             # Stream the response
-            formatted_docs = self.format_docs(state["documents"])
-            async for chunk in self.chain.astream({"context": formatted_docs, "question": first_message}):
+            formatted_docs = "\n\n".join(doc.page_content for doc in state["documents"])
+            async for chunk in self.answer_chain.astream({"context": formatted_docs, "question": first_message}):
                 if chunk:
                     current_sentence += chunk
                     
@@ -143,7 +162,7 @@ class ChatChain:
             
             return state
         except Exception as e:
-            logger.error(f"Error in process_message: {str(e)}")
+            logger.error(f"Error in answer_question: {str(e)}")
             raise
 
 class WorkflowGraph:
@@ -154,7 +173,7 @@ class WorkflowGraph:
         
         # Add nodes
         self.workflow.add_node("retrieve", self.chat_chain.retrieve_documents)
-        self.workflow.add_node("answer", self.chat_chain.process_message)
+        self.workflow.add_node("answer", self.chat_chain.answer_question)
         
         # Add edges
         self.workflow.add_edge(START, "retrieve")
