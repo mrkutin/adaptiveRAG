@@ -150,13 +150,14 @@ class ChatChain:
         # Score each doc
         filtered_docs = []
         for doc in documents:
-            # print(f"---DOC: {doc.page_content} \n\n {doc.metadata}---")
+            print("--------------------------------")
+            print(f"---DOC: {doc.page_content} {doc.metadata}---")
             grade = self.retrieval_grader.invoke(
                 {"question": question, "document": f"{doc.page_content} \n\n {doc.metadata}"}
             )
             grade = grade.binary_score
 
-            # print(f"---GRADE: {grade}---")
+            print(f"---GRADE: {grade}---")
 
             if grade == "yes":
                 print("---GRADE: DOCUMENT RELEVANT---")

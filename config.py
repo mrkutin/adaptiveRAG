@@ -5,7 +5,7 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     # Telegram settings
-    telegram_bot_token: str = Field(..., env='TELEGRAM_BOT_TOKEN')
+    telegram_bot_token: str = Field(env='TELEGRAM_BOT_TOKEN')
     
     # Ollama settings
     ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='OLLAMA_BASE_URL')

@@ -192,8 +192,8 @@ class OpenSearchRetriever(BaseRetriever):
         print(f"Structured query: {pformat(structured_query)}") 
         print("--------------------------------")
         opensearch_query = self._translator.visit_structured_query(structured_query)
-        # print(f"OpenSearch query: {pformat(opensearch_query)}")
-        # print("--------------------------------")
+        print(f"OpenSearch query: {pformat(opensearch_query)}")
+        print("--------------------------------")
         # Execute search
         result = self._client.search(
             index=self.index,
