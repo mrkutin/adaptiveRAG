@@ -10,7 +10,7 @@ from langchain.chains.query_constructor.base import (
     get_query_constructor_prompt,
 )
 from langchain.chains.query_constructor.schema import AttributeInfo
-from translator import CustomOpenSearchTranslator
+from open_search_translator import CustomOpenSearchTranslator
 from pprint import pformat
 from config import settings
 

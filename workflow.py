@@ -10,7 +10,7 @@ from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 from config import settings
-from retriever import OpenSearchRetriever
+from open_search_retriever import OpenSearchRetriever
 
 logger = logging.getLogger(__name__)
 
