@@ -29,14 +29,14 @@ class Settings(BaseSettings):
     retrieval_grader_ollama_max_tokens: int = Field(default=8192, env='RETRIEVAL_GRADER_OLLAMA_MAX_TOKENS')
     
     # OpenSearch settings
-    opensearch_host: str = Field(default="opensearch-data.prod.prosv.yc", env='OPENSEARCH_HOST')
-    opensearch_port: int = Field(default=9200, env='OPENSEARCH_PORT')
-    opensearch_username: str = Field(default="bus-admin", env='OPENSEARCH_USERNAME')
-    opensearch_password: str = Field(default="WZJ7WKimoLFWCzV", env='OPENSEARCH_PASSWORD')
-    opensearch_index: str = Field(default="bus-prod-info-*", env='OPENSEARCH_INDEX')
-    opensearch_use_ssl: bool = Field(default=True, env='OPENSEARCH_USE_SSL')
-    opensearch_verify_certs: bool = Field(default=False, env='OPENSEARCH_VERIFY_CERTS')
-    opensearch_query_size: int = Field(default=20, env='OPENSEARCH_QUERY_SIZE')
+    opensearch_host: str = Field(env='OPENSEARCH_HOST')
+    opensearch_port: int = Field(env='OPENSEARCH_PORT')
+    opensearch_username: str = Field(env='OPENSEARCH_USERNAME')
+    opensearch_password: str = Field(env='OPENSEARCH_PASSWORD')
+    opensearch_index: str = Field(env='OPENSEARCH_INDEX')
+    opensearch_use_ssl: bool = Field(env='OPENSEARCH_USE_SSL')
+    opensearch_verify_certs: bool = Field(env='OPENSEARCH_VERIFY_CERTS')
+    opensearch_query_size: int = Field(env='OPENSEARCH_QUERY_SIZE')
     
     # Application settings
     debug: bool = Field(default=False, env='DEBUG')
