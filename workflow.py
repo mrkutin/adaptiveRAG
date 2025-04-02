@@ -1,20 +1,18 @@
 import logging
 from typing import Annotated, Sequence
 from aiogram import Bot
-from langchain_ollama import OllamaLLM
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_ollama import OllamaLLM, ChatOllama
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langchain_core.prompts import ChatPromptTemplate
 from langchain.prompts import PromptTemplate
+from pydantic import BaseModel, Field
 
 from config import settings
 from retriever import OpenSearchRetriever
 
 logger = logging.getLogger(__name__)
-
 
 class GradeDocuments(BaseModel):
     """Binary score for relevance check on retrieved documents."""
@@ -22,7 +20,6 @@ class GradeDocuments(BaseModel):
     binary_score: str = Field(
         description="Documents are relevant to the question, 'yes' or 'no'"
     )
-
 
 class ChatState(MessagesState):
     """State for the chat workflow."""
@@ -35,22 +32,35 @@ class ChatChain:
     def __init__(self, bot: Bot):
         self.bot = bot
         self.opensearch_retriever = OpenSearchRetriever()
-        self.answer_llm = OllamaLLM(
+        
+        # Retrieval variables   
+        _retrieval_grader_prompt = PromptTemplate(
+            input_variables=["question", "document"],
+            template="""
+            You are a grader assessing relevance of a retrieved document to a user question. \n 
+            If the document contains keyword(s) or semantic meaning related to the user question, grade it as relevant. \n
+            It does not need to be a stringent test. The goal is to filter out erroneous retrievals. \n
+            Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question.
+            Retrieved document: \n\n {document} \n\n User question: {question}
+            """
+        )
+
+        _retrieval_grader_llm = ChatOllama(
             base_url=settings.ollama_base_url,
-            model=settings.ollama_model,
+            model=settings.ollama_model,#change to grader model
             temperature=settings.ollama_temperature,
             timeout=settings.ollama_timeout,
             streaming=True,
             max_tokens=settings.ollama_max_tokens
-            # temperature=0.1,    # Low temperature for consistent pattern matching
-            # top_k=3,           # Very limited options for precise matching
-            # top_p=0.1,         # High precision in pattern identification
-            # num_ctx=8192,      # Large context to analyze many logs at once
-            # repeat_penalty=1.2  # Higher penalty to avoid repetitive patterns
         )
-        
 
-        self.answer_prompt = PromptTemplate(
+        _structured_retrieval_grader_llm = _retrieval_grader_llm.with_structured_output(GradeDocuments)
+
+        self.retrieval_grader = _retrieval_grader_prompt | _structured_retrieval_grader_llm
+
+
+        # Answer variables
+        _answer_prompt = PromptTemplate(
             input_variables=["question", "context"],
             template="""
             Based on the user's query and the logs provided, determine the appropriate response.
@@ -70,8 +80,29 @@ class ChatChain:
             """
         )
 
+        _answer_llm = ChatOllama(
+            base_url=settings.ollama_base_url,
+            model=settings.ollama_model,
+            temperature=settings.ollama_temperature,
+            timeout=settings.ollama_timeout,
+            streaming=True,
+            max_tokens=settings.ollama_max_tokens
+            # temperature=0.1,    # Low temperature for consistent pattern matching
+            # top_k=3,           # Very limited options for precise matching
+            # top_p=0.1,         # High precision in pattern identification
+            # num_ctx=8192,      # Large context to analyze many logs at once
+            # repeat_penalty=1.2  # Higher penalty to avoid repetitive patterns
+        )
 
-        self.answer_chain = self.answer_prompt | self.answer_llm | StrOutputParser()
+        self.answer_chain = _answer_prompt | _answer_llm | StrOutputParser()
+
+
+
+
+
+        
+        
+
     
     async def retrieve_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""
@@ -82,11 +113,11 @@ class ChatChain:
             )
 
             # Get the last user message
-            query = state["messages"][-1].content
-            print(f"================ CHAIN QUERY: {query}")
+            question = state["messages"][0].content
+            print(f"================ CHAIN QUERY: {question}")
             
             # Retrieve documents
-            docs = self.opensearch_retriever.invoke(query)
+            docs = self.opensearch_retriever.invoke(question)
             await self.bot.edit_message_text(
                             chat_id=state["telegram_chat_id"],
                             message_id=msg.message_id,
@@ -100,6 +131,7 @@ class ChatChain:
             logger.error(f"Error in retrieve_documents: {str(e)}")
             raise
     
+
     def grade_documents(self, state):
         """
         Determines whether the retrieved documents are relevant to the question.
@@ -112,23 +144,28 @@ class ChatChain:
         """
 
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
-        question = state["question"]
+        question = state["messages"][0].content
         documents = state["documents"]
 
         # Score each doc
         filtered_docs = []
-        for d in documents:
-            score = self.retrieval_grader.invoke(
-                {"question": question, "document": d.page_content}
+        for doc in documents:
+            print(f"---DOC: {doc.page_content} \n\n {doc.metadata}---")
+            grade = self.retrieval_grader.invoke(
+                {"question": question, "document": f"{doc.page_content} \n\n {doc.metadata}"}
             )
-            grade = score.binary_score
+            grade = grade.binary_score
+
+            print(f"---GRADE: {grade}---")
+
             if grade == "yes":
                 print("---GRADE: DOCUMENT RELEVANT---")
-                filtered_docs.append(d)
+                filtered_docs.append(doc)
             else:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 continue
         return {"documents": filtered_docs, "question": question}
+
 
     async def answer_question(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
@@ -181,13 +218,15 @@ class WorkflowGraph:
         self.workflow = StateGraph(ChatState)
         
         # Add nodes
-        self.workflow.add_node("retrieve", self.chat_chain.retrieve_documents)
-        self.workflow.add_node("answer", self.chat_chain.answer_question)
+        self.workflow.add_node("retrieve_documents", self.chat_chain.retrieve_documents)
+        self.workflow.add_node("grade_documents", self.chat_chain.grade_documents)  
+        self.workflow.add_node("answer_question", self.chat_chain.answer_question)
         
         # Add edges
-        self.workflow.add_edge(START, "retrieve")
-        self.workflow.add_edge("retrieve", "answer")
-        self.workflow.add_edge("answer", END)
+        self.workflow.add_edge(START, "retrieve_documents")
+        self.workflow.add_edge("retrieve_documents", "grade_documents")
+        self.workflow.add_edge("grade_documents", "answer_question")
+        self.workflow.add_edge("answer_question", END)
         
         # Compile the graph
         self.app = self.workflow.compile()

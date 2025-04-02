@@ -26,23 +26,42 @@ client = OpenSearch(
 )
 
 result = client.search(index="bus-prod-info-*", body={
+    "min_score": 10.0,
+    "size": 501,
     "query": {
         "bool": {
             "must": {
                 "match": {
-                    "msg": "successfully posted to Mindbox"
-                }
+                    "msg": "mindbox upload error"
+                },
             },
 
             "filter": [
-                {'term': {'level': 'info'}},
+                {'term': {'level': 'error'}},
                 {'term': {'ns': 'prod'}},
-                {'term': {'svc': 'mindbox'}},
-                {'range': {'time': {'gte': 'now/M', 'lte': 'now-1w'}}}
+                {'range': {'time': {'gte': 'now/d'}}}
             ]
         }
     }
 })
+
+
+
+# result = client.search(index="bus-prod-info-*", body={
+#     "size": 1000,
+#     "query": {
+#         "bool": {
+#             "should": [
+#                 # { "match": { "msg": "mindbox" } },
+#                 { "match": { "msg": "uploaded" } },
+#                 { "match": { "msg": "error" } }
+#             ],
+#             "minimum_should_match": 2
+#         }
+#       }
+#     })
+
+
 
 print(f"result length: {len(result['hits']['hits'])}")
 

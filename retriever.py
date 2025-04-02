@@ -25,7 +25,7 @@ class OpenSearchRetriever(BaseRetriever):
     index: str = Field(default=settings.opensearch_index)
     use_ssl: bool = Field(default=settings.opensearch_use_ssl)
     verify_certs: bool = Field(default=settings.opensearch_verify_certs)
-    query_size: int = Field(default=settings.opensearch_query_size)
+    opensearch_query_size: int = Field(default=settings.opensearch_query_size)
     
     # Ollama configuration for query translation
     ollama_base_url: str = Field(default=settings.retriever_ollama_base_url)
@@ -80,11 +80,6 @@ class OpenSearchRetriever(BaseRetriever):
                 description="The namespace of the log entry, prod or test. Use prod if not specified",
                 type="string",
             ),
-            AttributeInfo(
-                name="svc",
-                description="Service name, mindbox, esb, etc.",
-                type="string",
-            ),
         ]
 
         # Define query examples
@@ -99,7 +94,7 @@ class OpenSearchRetriever(BaseRetriever):
             (
                 "What are errors in prod last hour?",
                 {       
-                    "query": "NO_FILTER",
+                    "query": "error",
                     "filter": "and(eq('level', 'error'), eq('ns', 'prod'), gte('time', 'now-1h'))",
                 },  
             ),
@@ -127,7 +122,7 @@ class OpenSearchRetriever(BaseRetriever):
             (
                 "What are errors in prod from 2025-03-20 to 2025-03-21?",
                 {       
-                    "query": "NO_FILTER",
+                    "query": "error",
                     "filter": "and(eq('level', 'error'), eq('ns', 'prod'), gte('time', '2025-03-20'), lte('time', '2025-03-21'))",
                 },  
             ),
@@ -204,8 +199,7 @@ class OpenSearchRetriever(BaseRetriever):
             index=self.index,
             body={
                 "query": opensearch_query,
-                "size": self.query_size,
-                "sort": [{"time": {"order": "desc"}}]
+                "size": self.opensearch_query_size,
             }
         )
 
@@ -235,7 +229,8 @@ if __name__ == "__main__":
     retriever = OpenSearchRetriever()
     
     tests = [
-        "What are errors in prod today?",
+        # "What are errors in prod today?",
+        "What are crm errors in prod today?",
         # "What are Mindbox upload server errors in topic id-authorize-customer-topic?",
         # "What are errors in prod last hour?",
         # "What are errors in prod last 20 hours?",

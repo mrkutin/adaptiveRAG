@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     opensearch_index: str = Field(default="bus-prod-info-*", env='OPENSEARCH_INDEX')
     opensearch_use_ssl: bool = Field(default=True, env='OPENSEARCH_USE_SSL')
     opensearch_verify_certs: bool = Field(default=False, env='OPENSEARCH_VERIFY_CERTS')
-    opensearch_query_size: int = Field(default=10, env='OPENSEARCH_QUERY_SIZE')
+    opensearch_query_size: int = Field(default=20, env='OPENSEARCH_QUERY_SIZE')
     
     # Application settings
     debug: bool = Field(default=False, env='DEBUG')
