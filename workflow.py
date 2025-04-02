@@ -1,17 +1,15 @@
 import logging
 from typing import Annotated, Sequence
 from aiogram import Bot
-from langchain_ollama import ChatOllama
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 from config import settings
 from open_search_retriever import OpenSearchRetriever
 from opensearch_retrieval_grader import OpenSearchRetrievalGrader
+from answerer import Answerer
 
 logger = logging.getLogger(__name__)
 
@@ -34,45 +32,8 @@ class ChatChain:
         self.bot = bot
         self.opensearch_retriever = OpenSearchRetriever()
         self.retrieval_grader = OpenSearchRetrievalGrader()
+        self.answerer = Answerer()
         
-        # Answer variables
-        _answer_prompt = PromptTemplate(
-            input_variables=["question", "context"],
-            template="""
-            Based on the user's query and the logs provided, determine the appropriate response.
-
-            USER QUESTION: {question}
-
-            LOGS CONTEXT:
-            {context}
-
-            Please provide:
-            1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
-            2. A concise description of what these logs represent, suitable for a business user.
-            3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
-            4. Exact IDs affected by the error, if applicable.
-
-            Focus on providing a clear and direct response to the user's question, supplemented by technical insights when necessary.
-            """
-        )
-
-        _answer_llm = ChatOllama(
-            base_url=settings.ollama_base_url,
-            model=settings.ollama_model,
-            temperature=settings.ollama_temperature,
-            timeout=settings.ollama_timeout,
-            streaming=True,
-            max_tokens=settings.ollama_max_tokens
-            # temperature=0.1,    # Low temperature for consistent pattern matching
-            # top_k=3,           # Very limited options for precise matching
-            # top_p=0.1,         # High precision in pattern identification
-            # num_ctx=8192,      # Large context to analyze many logs at once
-            # repeat_penalty=1.2  # Higher penalty to avoid repetitive patterns
-        )
-
-        self.answer_chain = _answer_prompt | _answer_llm | StrOutputParser()
-
-    
     async def retrieve_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""
         try:
@@ -145,7 +106,8 @@ class ChatChain:
             
             # Stream the response
             formatted_docs = "\n\n".join(doc.page_content for doc in state["documents"])
-            async for chunk in self.answer_chain.astream({"context": formatted_docs, "question": first_message}):
+            
+            async for chunk in self.answerer.astream({"context": formatted_docs, "question": first_message}):
                 if chunk:
                     current_sentence += chunk
                     
