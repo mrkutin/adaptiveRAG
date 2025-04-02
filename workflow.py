@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated, Sequence
 from aiogram import Bot
-from langchain_ollama import OllamaLLM, ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from config import settings
 from open_search_retriever import OpenSearchRetriever
+from opensearch_retrieval_grader import OpenSearchRetrievalGrader
 
 logger = logging.getLogger(__name__)
 
@@ -32,33 +33,8 @@ class ChatChain:
     def __init__(self, bot: Bot):
         self.bot = bot
         self.opensearch_retriever = OpenSearchRetriever()
+        self.retrieval_grader = OpenSearchRetrievalGrader()
         
-        # Retrieval variables   
-        _retrieval_grader_prompt = PromptTemplate(
-            input_variables=["question", "document"],
-            template="""
-            You are a grader assessing relevance of a retrieved document to a user question. \n 
-            If the document contains keyword(s) or semantic meaning related to the user question, grade it as relevant. \n
-            It does not need to be a stringent test. The goal is to filter out erroneous retrievals. \n
-            Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question.
-            Retrieved document: \n\n {document} \n\n User question: {question}
-            """
-        )
-
-        _retrieval_grader_llm = ChatOllama(
-            base_url=settings.retrieval_grader_ollama_base_url,
-            model=settings.retrieval_grader_ollama_model,
-            temperature=settings.retrieval_grader_ollama_temperature,
-            timeout=settings.retrieval_grader_ollama_timeout,
-            streaming=True,
-            max_tokens=settings.retrieval_grader_ollama_max_tokens
-        )
-
-        _structured_retrieval_grader_llm = _retrieval_grader_llm.with_structured_output(GradeDocuments)
-
-        self.retrieval_grader = _retrieval_grader_prompt | _structured_retrieval_grader_llm
-
-
         # Answer variables
         _answer_prompt = PromptTemplate(
             input_variables=["question", "context"],
@@ -96,13 +72,6 @@ class ChatChain:
 
         self.answer_chain = _answer_prompt | _answer_llm | StrOutputParser()
 
-
-
-
-
-        
-        
-
     
     async def retrieve_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""
@@ -133,16 +102,7 @@ class ChatChain:
     
 
     def grade_documents(self, state):
-        """
-        Determines whether the retrieved documents are relevant to the question.
-
-        Args:
-            state (dict): The current graph state
-
-        Returns:
-            state (dict): Updates documents key with only filtered relevant documents
-        """
-
+        """Determines whether the retrieved documents are relevant to the question."""
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
         question = state["messages"][0].content
         documents = state["documents"]
@@ -153,9 +113,9 @@ class ChatChain:
             print("--------------------------------")
             print(f"---DOC: {doc.page_content} {doc.metadata}---")
             grade = self.retrieval_grader.invoke(
-                {"question": question, "document": f"{doc.page_content} \n\n {doc.metadata}"}
+                question=question,
+                document=f"{doc.page_content} \n\n {doc.metadata}"
             )
-            grade = grade.binary_score
 
             print(f"---GRADE: {grade}---")
 
