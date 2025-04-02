@@ -46,12 +46,12 @@ class ChatChain:
         )
 
         _retrieval_grader_llm = ChatOllama(
-            base_url=settings.ollama_base_url,
-            model=settings.ollama_model,#change to grader model
-            temperature=settings.ollama_temperature,
-            timeout=settings.ollama_timeout,
+            base_url=settings.retrieval_grader_ollama_base_url,
+            model=settings.retrieval_grader_ollama_model,
+            temperature=settings.retrieval_grader_ollama_temperature,
+            timeout=settings.retrieval_grader_ollama_timeout,
             streaming=True,
-            max_tokens=settings.ollama_max_tokens
+            max_tokens=settings.retrieval_grader_ollama_max_tokens
         )
 
         _structured_retrieval_grader_llm = _retrieval_grader_llm.with_structured_output(GradeDocuments)
@@ -114,7 +114,7 @@ class ChatChain:
 
             # Get the last user message
             question = state["messages"][0].content
-            print(f"================ CHAIN QUERY: {question}")
+            # print(f"================ CHAIN QUERY: {question}")
             
             # Retrieve documents
             docs = self.opensearch_retriever.invoke(question)
@@ -150,13 +150,13 @@ class ChatChain:
         # Score each doc
         filtered_docs = []
         for doc in documents:
-            print(f"---DOC: {doc.page_content} \n\n {doc.metadata}---")
+            # print(f"---DOC: {doc.page_content} \n\n {doc.metadata}---")
             grade = self.retrieval_grader.invoke(
                 {"question": question, "document": f"{doc.page_content} \n\n {doc.metadata}"}
             )
             grade = grade.binary_score
 
-            print(f"---GRADE: {grade}---")
+            # print(f"---GRADE: {grade}---")
 
             if grade == "yes":
                 print("---GRADE: DOCUMENT RELEVANT---")
@@ -235,6 +235,3 @@ class WorkflowGraph:
         """Process a message through the workflow."""
         return await self.app.ainvoke(initial_state) 
     
-
-
-# print(ChatChain(bot=Bot(token=settings.telegram_bot_token)).prompt.format(question="What are Mindbox upload server errors in topic id-authorize-customer-topic?", context=))

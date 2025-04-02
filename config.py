@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     retriever_ollama_timeout: int = Field(default=30, env='RETRIEVER_OLLAMA_TIMEOUT')
     retriever_ollama_max_tokens: int = Field(default=8192, env='RETRIEVER_OLLAMA_MAX_TOKENS')
     
+    # Retrieval Grader Ollama settings
+    retrieval_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='RETRIEVER_OLLAMA_BASE_URL')
+    retrieval_grader_ollama_model: str = Field(default="qwen2.5-coder", env='RETRIEVER_OLLAMA_MODEL')
+    retrieval_grader_ollama_temperature: float = Field(default=0, env='RETRIEVAL_GRADER_OLLAMA_TEMPERATURE')
+    retrieval_grader_ollama_timeout: int = Field(default=30, env='RETRIEVAL_GRADER_OLLAMA_TIMEOUT')
+    retrieval_grader_ollama_max_tokens: int = Field(default=8192, env='RETRIEVAL_GRADER_OLLAMA_MAX_TOKENS')
+    
     # OpenSearch settings
     opensearch_host: str = Field(default="opensearch-data.prod.prosv.yc", env='OPENSEARCH_HOST')
     opensearch_port: int = Field(default=9200, env='OPENSEARCH_PORT')
