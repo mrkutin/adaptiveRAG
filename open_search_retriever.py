@@ -203,7 +203,7 @@ class OpenSearchRetriever(BaseRetriever):
             }
         )
 
-        print(f"result length: {len(result['hits']['hits'])}")
+        print(f"--- RETRIEVED {len(result['hits']['hits'])} documents")
         
         # Convert OpenSearch results to Documents
         docs = []

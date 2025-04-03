@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from config import settings
 from open_search_retriever import OpenSearchRetriever
 from opensearch_retrieval_grader import OpenSearchRetrievalGrader
+from question_rewriter import QuestionRewriter
 from answerer import Answerer
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ class ChatChain:
         self.bot = bot
         self.opensearch_retriever = OpenSearchRetriever()
         self.retrieval_grader = OpenSearchRetrievalGrader()
+        self.question_rewriter = QuestionRewriter()
         self.answerer = Answerer()
         
     async def retrieve_opensearch_documents(self, state: ChatState) -> ChatState:
@@ -85,6 +87,8 @@ class ChatChain:
             else:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 continue
+        
+        print(f"---FILTERED {len(filtered_docs)} documents")
         
         state["documents"] = filtered_docs
         return state
