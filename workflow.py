@@ -23,7 +23,7 @@ class GradeDocuments(BaseModel):
 class ChatState(MessagesState):
     """State for the chat workflow."""
     telegram_chat_id: int
-    messages: Annotated[Sequence[HumanMessage | AIMessage], "messages"]
+    question: str
     documents: Annotated[Sequence[Document], "documents"]
 
 class ChatChain:
@@ -34,7 +34,7 @@ class ChatChain:
         self.retrieval_grader = OpenSearchRetrievalGrader()
         self.answerer = Answerer()
         
-    async def retrieve_documents(self, state: ChatState) -> ChatState:
+    async def retrieve_opensearch_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""
         try:
             msg = await self.bot.send_message(
@@ -43,7 +43,7 @@ class ChatChain:
             )
 
             # Get the last user message
-            question = state["messages"][0].content
+            question = state["question"]
             # print(f"================ CHAIN QUERY: {question}")
             
             # Retrieve documents
@@ -61,11 +61,10 @@ class ChatChain:
             logger.error(f"Error in retrieve_documents: {str(e)}")
             raise
     
-
-    def grade_documents(self, state):
+    def grade_opensearch_documents(self, state):
         """Determines whether the retrieved documents are relevant to the question."""
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
-        question = state["messages"][0].content
+        question = state["question"]
         documents = state["documents"]
 
         # Score each doc
@@ -86,19 +85,20 @@ class ChatChain:
             else:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 continue
-        return {"documents": filtered_docs, "question": question}
-
+        
+        state["documents"] = filtered_docs
+        return state
 
     async def answer_question(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
         try:
             # Get the user message from history
-            first_message = state["messages"][0].content
+            question = state["question"]
 
             # Send initial "processing" message
             msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text=f"Answering your question: {first_message}"
+                text=f"Answering your question: {question}"
             )
 
             current_sentence = ""
@@ -107,7 +107,7 @@ class ChatChain:
             # Stream the response
             formatted_docs = "\n\n".join(doc.page_content for doc in state["documents"])
             
-            async for chunk in self.answerer.astream({"context": formatted_docs, "question": first_message}):
+            async for chunk in self.answerer.astream({"context": formatted_docs, "question": question}):
                 if chunk:
                     current_sentence += chunk
                     
@@ -141,14 +141,14 @@ class WorkflowGraph:
         self.workflow = StateGraph(ChatState)
         
         # Add nodes
-        self.workflow.add_node("retrieve_documents", self.chat_chain.retrieve_documents)
-        self.workflow.add_node("grade_documents", self.chat_chain.grade_documents)  
+        self.workflow.add_node("retrieve_opensearch_documents", self.chat_chain.retrieve_opensearch_documents)
+        self.workflow.add_node("grade_opensearch_documents", self.chat_chain.grade_opensearch_documents)  
         self.workflow.add_node("answer_question", self.chat_chain.answer_question)
         
         # Add edges
-        self.workflow.add_edge(START, "retrieve_documents")
-        self.workflow.add_edge("retrieve_documents", "grade_documents")
-        self.workflow.add_edge("grade_documents", "answer_question")
+        self.workflow.add_edge(START, "retrieve_opensearch_documents")
+        self.workflow.add_edge("retrieve_opensearch_documents", "grade_opensearch_documents")
+        self.workflow.add_edge("grade_opensearch_documents", "answer_question")
         self.workflow.add_edge("answer_question", END)
         
         # Compile the graph

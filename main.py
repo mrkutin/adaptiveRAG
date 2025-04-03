@@ -49,7 +49,7 @@ class TelegramBot:
         try:
             # Initialize state
             initial_state = ChatState(
-                messages=[HumanMessage(content=message.text)],
+                question=message.text,
                 telegram_chat_id=message.chat.id,
                 documents=[]  # Initialize empty documents list
             )
