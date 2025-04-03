@@ -46,20 +46,20 @@ class TelegramBot:
     
     async def handle_message(self, message: Message):
         """Handle incoming messages."""
-        try:
-            # Initialize state
-            initial_state = ChatState(
-                question=message.text,
-                telegram_chat_id=message.chat.id,
-                documents=[]  # Initialize empty documents list
-            )
+        # TODO try:
+        # Initialize state
+        initial_state = ChatState(
+            question=message.text,
+            telegram_chat_id=message.chat.id,
+            rewrite_question_attempts=2
+        )
+        
+        # Process through workflow
+        await self.workflow.process(initial_state)
             
-            # Process through workflow
-            await self.workflow.process(initial_state)
-            
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}")
-            await message.answer(f"Sorry, I encountered an error: {str(e)}")
+        # except Exception as e:
+        #     logger.error(f"Error processing message: {str(e)}")
+        #     await message.answer(f"Sorry, I encountered an error: {str(e)}")
     
     async def start(self):
         """Start the bot."""

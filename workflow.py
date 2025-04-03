@@ -25,6 +25,7 @@ class ChatState(MessagesState):
     """State for the chat workflow."""
     telegram_chat_id: int
     question: str
+    rewrite_question_attempts: int
     documents: Annotated[Sequence[Document], "documents"]
 
 class ChatChain:
@@ -55,10 +56,8 @@ class ChatChain:
                             message_id=msg.message_id,
                             text=f"Retrieved {len(docs)} documents"
                         )
-            # Update state with retrieved documents
-            state["documents"] = docs
             
-            return state
+            return {**state, "documents": docs}
         except Exception as e:
             logger.error(f"Error in retrieve_documents: {str(e)}")
             raise
@@ -90,8 +89,33 @@ class ChatChain:
         
         print(f"---FILTERED {len(filtered_docs)} documents")
         
-        state["documents"] = filtered_docs
-        return state
+        return {**state, "documents": filtered_docs}
+
+    
+    def decide_to_generate(self, state):
+        print("---ASSESS GRADED DOCUMENTS---")
+    
+        filtered_documents = state["documents"]
+        rewrite_question_attempts = state['rewrite_question_attempts']
+
+        if not filtered_documents and rewrite_question_attempts > 1:
+            print(f"---RETRIEVE ATTEMPTS: {rewrite_question_attempts}---")
+            print("---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---")
+            return "rewrite_question"
+        else:
+            print("---DECISION: GENERATE---")
+            return "answer_question"
+    
+    
+    def rewrite_question(self, state):
+        print("---REWRITE QUESTION---")
+        question = state["question"]
+        documents = state["documents"]
+
+        # Re-write question
+        better_question = self.question_rewriter.invoke({"question": question})
+        print(f"---NEW QUESTION: {better_question}---")
+        return {"documents": documents, "question": better_question, "rewrite_question_attempts": state["rewrite_question_attempts"] - 1}
 
     async def answer_question(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
@@ -147,12 +171,26 @@ class WorkflowGraph:
         # Add nodes
         self.workflow.add_node("retrieve_opensearch_documents", self.chat_chain.retrieve_opensearch_documents)
         self.workflow.add_node("grade_opensearch_documents", self.chat_chain.grade_opensearch_documents)  
+        self.workflow.add_node("rewrite_question", self.chat_chain.rewrite_question)
         self.workflow.add_node("answer_question", self.chat_chain.answer_question)
         
         # Add edges
         self.workflow.add_edge(START, "retrieve_opensearch_documents")
         self.workflow.add_edge("retrieve_opensearch_documents", "grade_opensearch_documents")
-        self.workflow.add_edge("grade_opensearch_documents", "answer_question")
+
+
+        self.workflow.add_conditional_edges(
+            "grade_opensearch_documents",
+            self.chat_chain.decide_to_generate,
+            {
+                "rewrite_question": "rewrite_question",
+                "answer_question": "answer_question",
+            },
+        )
+        self.workflow.add_edge("rewrite_question", "retrieve_opensearch_documents")
+
+
+        # self.workflow.add_edge("grade_opensearch_documents", "answer_question")
         self.workflow.add_edge("answer_question", END)
         
         # Compile the graph
