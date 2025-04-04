@@ -191,7 +191,7 @@ class OpenSearchRetriever(BaseRetriever):
         structured_query = self._query_constructor.invoke({"query": query})
         print(f"Structured query: {pformat(structured_query)}") 
         print("--------------------------------")
-        opensearch_query = self._translator.visit_structured_query(structured_query)
+        opensearch_query = self._translator.visit_structured_query(structured_query)[1]
         print(f"OpenSearch query: {pformat(opensearch_query)}")
         print("--------------------------------")
         # Execute search
@@ -242,7 +242,7 @@ class OpenSearchRetriever(BaseRetriever):
         print(f"Structured query: {pformat(structured_query)}") 
         print("--------------------------------")
 
-        opensearch_query = self._translator.visit_structured_query(structured_query)
+        opensearch_query = self._translator.visit_structured_query(structured_query)[1]
         print(f"OpenSearch query: {pformat(opensearch_query)}")
         print("--------------------------------")
 

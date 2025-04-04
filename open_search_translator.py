@@ -1,55 +1,13 @@
-from typing import Dict, Union
+from langchain_community.query_constructors.opensearch import OpenSearchTranslator
+from typing import Dict, Tuple
 from langchain_core.structured_query import (
     Comparator,
     Comparison,
-    Operation,
-    Operator,
-    StructuredQuery,
-    Visitor,
+    StructuredQuery
 )
 
-class CustomOpenSearchTranslator(Visitor):
-    """Translate structured queries to OpenSearch format without field name modifications."""
-
-    allowed_comparators = [
-        Comparator.EQ,
-        Comparator.LT,
-        Comparator.LTE,
-        Comparator.GT,
-        Comparator.GTE,
-    ]
-    """Subset of allowed logical comparators."""
-
-    allowed_operators = [Operator.AND, Operator.OR, Operator.NOT]
-    """Subset of allowed logical operators."""
-
-    def _format_func(self, func: Union[Operator, Comparator]) -> str:
-        self._validate_func(func)
-        comp_operator_map = {
-            Comparator.EQ: "term",
-            Comparator.LT: "lt",
-            Comparator.LTE: "lte",
-            Comparator.GT: "gt",
-            Comparator.GTE: "gte",
-            Operator.AND: "must",
-            Operator.OR: "should",
-            Operator.NOT: "must_not",
-        }
-        return comp_operator_map[func]
-
-    def visit_operation(self, operation: Operation) -> Dict:
-        """Convert operation (AND/OR/NOT) to OpenSearch bool query."""
-        args = [arg.accept(self) for arg in operation.arguments]
-        # Filter out None values (skipped filters)
-        args = [arg for arg in args if arg is not None]
-        
-        if not args:
-            return None
-            
-        return {"bool": {self._format_func(operation.operator): args}}
-
+class CustomOpenSearchTranslator(OpenSearchTranslator):
     def visit_comparison(self, comparison: Comparison) -> Dict:
-        """Convert comparison to OpenSearch query term."""
         # Skip if value is NO_FILTER
         if comparison.value == "NO_FILTER":
             return None
@@ -70,13 +28,18 @@ class CustomOpenSearchTranslator(Visitor):
 
         return {self._format_func(comparison.comparator): {comparison.attribute: comparison.value}}
 
-    def visit_structured_query(self, structured_query: StructuredQuery) -> Dict:
+    def visit_structured_query(
+        self, structured_query: StructuredQuery
+    ) -> Tuple[str, dict]:  # Changed return type to match base class
         """Convert structured query to OpenSearch query format."""
         query_dict = {"bool": {}}
         
-        # Add text query if present and not NO_FILTER
-        if structured_query.query and structured_query.query != "NO_FILTER":
-            query_dict["bool"]["must"] = {"match": {"msg": structured_query.query}}
+        # Get the query text
+        query_text = structured_query.query if structured_query.query != "NO_FILTER" else ""
+        
+        # Add text query if present
+        if query_text:
+            query_dict["bool"]["must"] = {"match": {"msg": query_text}}
 
         # Add filters if present
         if structured_query.filter:
@@ -89,8 +52,8 @@ class CustomOpenSearchTranslator(Visitor):
                     # If we have a single filter, wrap it in a list
                     query_dict["bool"]["filter"] = [filter_dict]
 
-        # If we have an empty bool query, return just the parts we have
+        # If we have an empty bool query, use match_all
         if not query_dict["bool"]:
-            return {"match_all": {}}
+            return query_text, {"match_all": {}}
             
-        return query_dict 
+        return query_text, query_dict  
