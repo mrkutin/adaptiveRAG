@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, env='DEBUG')
     log_level: str = Field(default="INFO", env='LOG_LEVEL')
     
+    # Hallucination Grader Ollama settings
+    hallucination_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='HALLUCINATION_GRADER_OLLAMA_BASE_URL')
+    hallucination_grader_ollama_model: str = Field(default="qwen2.5-coder", env='HALLUCINATION_GRADER_OLLAMA_MODEL')
+    hallucination_grader_ollama_temperature: float = Field(default=0, env='HALLUCINATION_GRADER_OLLAMA_TEMPERATURE')
+    hallucination_grader_ollama_timeout: int = Field(default=30, env='HALLUCINATION_GRADER_OLLAMA_TIMEOUT')
+    hallucination_grader_ollama_max_tokens: int = Field(default=8192, env='HALLUCINATION_GRADER_OLLAMA_MAX_TOKENS')
+    
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
