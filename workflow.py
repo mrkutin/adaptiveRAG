@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, MessagesState, START, END
 from pydantic import BaseModel, Field
+import asyncio
 
 from config import settings
 from open_search_retriever import OpenSearchRetriever
@@ -50,7 +51,7 @@ class ChatChain:
             # print(f"================ CHAIN QUERY: {question}")
             
             # Retrieve documents
-            docs = self.opensearch_retriever.invoke(question)
+            docs = await self.opensearch_retriever.ainvoke(question)
             await self.bot.edit_message_text(
                             chat_id=state["telegram_chat_id"],
                             message_id=msg.message_id,
@@ -62,44 +63,67 @@ class ChatChain:
             logger.error(f"Error in retrieve_documents: {str(e)}")
             raise
     
-    async def grade_opensearch_documents(self, state):
-        """Determines whether the retrieved documents are relevant to the question."""
-        print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
-        msg = await self.bot.send_message(
-                chat_id=state["telegram_chat_id"],
-                text="Checking document relevance to question..."
-            )
-        question = state["question"]
-        documents = state["documents"]
-
-        # Score each doc
-        filtered_docs = []
-        for doc in documents:
-            print("--------------------------------")
-            print(f"---DOC: {doc.page_content} {doc.metadata}---")
-            grade = self.retrieval_grader.invoke(
+    async def _grade_single_document(self, question: str, doc: Document) -> tuple[Document, bool]:
+        """Grade a single document for relevance.
+        
+        Args:
+            question: The user's question
+            doc: The document to grade
+            
+        Returns:
+            Tuple of (document, is_relevant)
+        """
+        try:
+            grade = await self.retrieval_grader.ainvoke(
                 question=question,
                 document=f"{doc.page_content} \n\n {doc.metadata}"
             )
+            print(f"---DOC: {doc.page_content[:100]}... GRADE: {grade}---")
+            return (doc, grade == "yes")
+        except Exception as e:
+            print(f"Error grading document: {e}")
+            return (doc, False)
 
-            print(f"---GRADE: {grade}---")
+    async def grade_opensearch_documents(self, state):
+        """Determines whether the retrieved documents are relevant to the question."""
+        try:
+            print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
+            
+            status_msg = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="Checking document relevance to question..."
+            )
 
-            if grade == "yes":
-                print("---GRADE: DOCUMENT RELEVANT---")
-                filtered_docs.append(doc)
-            else:
-                print("---GRADE: DOCUMENT NOT RELEVANT---")
-                continue
-        
-        print(f"---FILTERED {len(filtered_docs)} documents")
-        await self.bot.edit_message_text(
-                            chat_id=state["telegram_chat_id"],
-                            message_id=msg.message_id,
-                            text=f"{len(filtered_docs)} documents graded as relevant"
-                        )
-        
-        return {**state, "documents": filtered_docs}
+            # Grade all documents concurrently
+            graded_docs = await asyncio.gather(
+                *[self._grade_single_document(state["question"], doc) 
+                  for doc in state["documents"]]
+            )
 
+            # Filter relevant documents
+            filtered_docs = [doc for doc, is_relevant in graded_docs if is_relevant]
+            
+            # Update status message
+            await self.bot.edit_message_text(
+                chat_id=state["telegram_chat_id"],
+                message_id=status_msg.message_id,
+                text=f"{len(filtered_docs)} out of {len(state['documents'])} documents graded as relevant"
+            )
+            
+            return {**state, "documents": filtered_docs}
+
+        except Exception as e:
+            logger.error(f"Error in grade_opensearch_documents: {e}")
+            # Try to notify user about the error
+            try:
+                await self.bot.edit_message_text(
+                    chat_id=state["telegram_chat_id"],
+                    message_id=status_msg.message_id,
+                    text="Error occurred while grading documents"
+                )
+            except:
+                pass
+            raise
     
     async def decide_to_generate(self, state):
         print("---ASSESS GRADED DOCUMENTS---")
@@ -140,7 +164,7 @@ class ChatChain:
         documents = state["documents"]
 
         # Re-write question
-        better_question = self.question_rewriter.invoke({"question": question})
+        better_question = await self.question_rewriter.ainvoke({"question": question})
         print(f"---NEW QUESTION: {better_question}---")
         await self.bot.edit_message_text(
                             chat_id=state["telegram_chat_id"],

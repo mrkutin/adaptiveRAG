@@ -49,3 +49,15 @@ class OpenSearchRetrievalGrader:
         except Exception as e:
             logger.error(f"Error in RetrievalGrader.invoke: {str(e)}")
             raise 
+
+    async def ainvoke(self, question: str, document: str) -> str:
+        """Grade document relevance to the question."""
+        try:
+            result = await self.chain.ainvoke({
+                "question": question,
+                "document": document
+            })  
+            return result.binary_score
+        except Exception as e:
+            logger.error(f"Error in RetrievalGrader.ainvoke: {str(e)}")
+            raise 

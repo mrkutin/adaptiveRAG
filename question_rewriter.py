@@ -46,3 +46,11 @@ class QuestionRewriter:
         except Exception as e:
             logger.error(f"Error in RetrievalGrader.invoke: {str(e)}")
             raise 
+
+    async def ainvoke(self, inputs: dict) -> str:
+        """Grade document relevance to the question."""
+        try:
+            result = await self.chain.ainvoke(inputs)
+            return result.improved_question
+        except Exception as e:
+            logger.error(f"Error in RetrievalGrader.ainvoke: {str(e)}")

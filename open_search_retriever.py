@@ -3,7 +3,7 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import Field, PrivateAttr
-from opensearchpy import OpenSearch
+from opensearchpy import OpenSearch, AsyncOpenSearch
 from langchain_ollama import OllamaLLM
 from langchain.chains.query_constructor.base import (
     StructuredQueryOutputParser,
@@ -43,7 +43,7 @@ class OpenSearchRetriever(BaseRetriever):
         super().__init__(**kwargs)
 
         # Initialize OpenSearch client
-        self._client = OpenSearch(
+        self._client = AsyncOpenSearch(
             hosts=[{'host': self.host, 'port': self.port}],
             http_auth=(self.username, self.password) if self.username else None,
             use_ssl=self.use_ssl,
@@ -223,6 +223,60 @@ class OpenSearchRetriever(BaseRetriever):
             )
         
         return docs
+
+
+    async def _aget_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+    ) -> List[Document]:
+        """Search documents in OpenSearch using translated query.
+        
+        Args:
+            query: The natural language query
+            run_manager: Callback manager
+            
+        Returns:
+            List of found documents
+        """
+        # Translate query using the same flow as in self_query_example.py
+        structured_query = await self._query_constructor.ainvoke({"query": query})
+        print(f"Structured query: {pformat(structured_query)}") 
+        print("--------------------------------")
+
+        opensearch_query = self._translator.visit_structured_query(structured_query)
+        print(f"OpenSearch query: {pformat(opensearch_query)}")
+        print("--------------------------------")
+
+        # Execute search
+        result = await self._client.search(
+            index=self.index,
+            body={
+                "query": opensearch_query,
+                "size": self.opensearch_query_size,
+            }
+        )
+
+        print(f"--- RETRIEVED {len(result['hits']['hits'])} documents")
+        
+        # Convert OpenSearch results to Documents
+        docs = []
+        for hit in result["hits"]["hits"]:
+            source = hit["_source"]
+            docs.append(
+                Document(
+                    page_content=source.get("msg", ""),
+                    metadata={
+                        "level": source.get("level"),
+                        "ns": source.get("ns"),
+                        "svc": source.get("svc"),
+                        "time": source.get("time"),
+                        "score": hit["_score"]
+                    }
+                )
+            )
+        
+        return docs
+
+
 
 # Example usage:
 if __name__ == "__main__":
