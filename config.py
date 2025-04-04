@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     hallucination_grader_ollama_timeout: int = Field(default=30, env='HALLUCINATION_GRADER_OLLAMA_TIMEOUT')
     hallucination_grader_ollama_max_tokens: int = Field(default=8192, env='HALLUCINATION_GRADER_OLLAMA_MAX_TOKENS')
     
+    # Answer Grader Ollama settings
+    answer_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='ANSWER_GRADER_OLLAMA_BASE_URL')
+    answer_grader_ollama_model: str = Field(default="qwen2.5-coder", env='ANSWER_GRADER_OLLAMA_MODEL')
+    answer_grader_ollama_temperature: float = Field(default=0, env='ANSWER_GRADER_OLLAMA_TEMPERATURE')
+    answer_grader_ollama_timeout: int = Field(default=30, env='ANSWER_GRADER_OLLAMA_TIMEOUT')
+    answer_grader_ollama_max_tokens: int = Field(default=8192, env='ANSWER_GRADER_OLLAMA_MAX_TOKENS')
+
     # OpenSearch settings
     opensearch_host: str = Field(env='OPENSEARCH_HOST')
     opensearch_port: int = Field(env='OPENSEARCH_PORT')
