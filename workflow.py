@@ -62,9 +62,13 @@ class ChatChain:
             logger.error(f"Error in retrieve_documents: {str(e)}")
             raise
     
-    def grade_opensearch_documents(self, state):
+    async def grade_opensearch_documents(self, state):
         """Determines whether the retrieved documents are relevant to the question."""
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
+        msg = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="Checking document relevance to question..."
+            )
         question = state["question"]
         documents = state["documents"]
 
@@ -88,33 +92,61 @@ class ChatChain:
                 continue
         
         print(f"---FILTERED {len(filtered_docs)} documents")
+        await self.bot.edit_message_text(
+                            chat_id=state["telegram_chat_id"],
+                            message_id=msg.message_id,
+                            text=f"{len(filtered_docs)} documents graded as relevant"
+                        )
         
         return {**state, "documents": filtered_docs}
 
     
-    def decide_to_generate(self, state):
+    async def decide_to_generate(self, state):
         print("---ASSESS GRADED DOCUMENTS---")
-    
+        msg = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="Assessing graded documents..."
+        )
         filtered_documents = state["documents"]
         rewrite_question_attempts = state['rewrite_question_attempts']
 
         if not filtered_documents and rewrite_question_attempts > 1:
             print(f"---RETRIEVE ATTEMPTS: {rewrite_question_attempts}---")
             print("---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---")
+            await self.bot.edit_message_text(
+                            chat_id=state["telegram_chat_id"],
+                            message_id=msg.message_id,
+                            text=f"All documents are not relevant to question, transforming query..."
+                        )
             return "rewrite_question"
         else:
             print("---DECISION: GENERATE---")
+            await self.bot.edit_message_text(
+                            chat_id=state["telegram_chat_id"],
+                            message_id=msg.message_id,
+                            text=f"Decision: Generate answer"
+                        )
             return "answer_question"
     
     
-    def rewrite_question(self, state):
+    async def rewrite_question(self, state):
         print("---REWRITE QUESTION---")
+        msg = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="Decision: Rewrite question"
+        )
+
         question = state["question"]
         documents = state["documents"]
 
         # Re-write question
         better_question = self.question_rewriter.invoke({"question": question})
         print(f"---NEW QUESTION: {better_question}---")
+        await self.bot.edit_message_text(
+                            chat_id=state["telegram_chat_id"],
+                            message_id=msg.message_id,
+                            text=f"Rewritten question: {better_question}"
+                        )
         return {"documents": documents, "question": better_question, "rewrite_question_attempts": state["rewrite_question_attempts"] - 1}
 
     async def answer_question(self, state: ChatState) -> ChatState:
