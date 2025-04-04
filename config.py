@@ -7,13 +7,13 @@ class Settings(BaseSettings):
     # Telegram settings
     telegram_bot_token: str = Field(env='TELEGRAM_BOT_TOKEN')
     
-    # Ollama settings
-    ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='OLLAMA_BASE_URL')
-    ollama_model: str = Field(default="llama3.1", env='OLLAMA_MODEL')
-    ollama_temperature: float = Field(default=0.7, env='OLLAMA_TEMPERATURE')
-    ollama_timeout: int = Field(default=30, env='OLLAMA_TIMEOUT')
-    ollama_max_tokens: int = Field(default=32768, env='OLLAMA_MAX_TOKENS')
-    
+    # Answerer Ollama settings
+    answerer_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='ANSWERER_OLLAMA_BASE_URL')
+    answerer_ollama_model: str = Field(default="llama3.1", env='ANSWERER_OLLAMA_MODEL')
+    answerer_ollama_temperature: float = Field(default=0.7, env='ANSWERER_OLLAMA_TEMPERATURE')
+    answerer_ollama_timeout: int = Field(default=30, env='ANSWERER_OLLAMA_TIMEOUT')
+    answerer_ollama_max_tokens: int = Field(default=32768, env='ANSWERER_OLLAMA_MAX_TOKENS')
+
     # Retriever Ollama settings
     retriever_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='RETRIEVER_OLLAMA_BASE_URL')
     retriever_ollama_model: str = Field(default="qwen2.5-coder", env='RETRIEVER_OLLAMA_MODEL')
@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     # Application settings
     debug: bool = Field(default=False, env='DEBUG')
     log_level: str = Field(default="INFO", env='LOG_LEVEL')
+    
     
     model_config = SettingsConfigDict(
         env_file='.env',

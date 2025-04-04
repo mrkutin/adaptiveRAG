@@ -30,12 +30,12 @@ class Answerer:
         )
 
         self._llm = ChatOllama(
-            base_url=settings.ollama_base_url,
-            model=settings.ollama_model,
-            temperature=settings.ollama_temperature,
-            timeout=settings.ollama_timeout,
+            base_url=settings.answerer_ollama_base_url,
+            model=settings.answerer_ollama_model,
+            temperature=settings.answerer_ollama_temperature,
+            timeout=settings.answerer_ollama_timeout,
             streaming=True,
-            max_tokens=settings.ollama_max_tokens
+            max_tokens=settings.answerer_ollama_max_tokens
         )
 
         self.chain = self._prompt | self._llm | StrOutputParser()

@@ -18,15 +18,6 @@ logger = logging.getLogger(__name__)
 class TelegramBot:
     """Class to manage Telegram bot operations."""
     def __init__(self):
-        # Log configuration parameters
-        logger.info("Starting bot with configuration:")
-        logger.info(f"Telegram Bot Token: ...{settings.telegram_bot_token[-8:]}")
-        logger.info(f"Ollama Base URL: {settings.ollama_base_url}")
-        logger.info(f"Ollama Model: {settings.ollama_model}")
-        logger.info(f"Ollama Temperature: {settings.ollama_temperature}")
-        logger.info(f"Ollama Timeout: {settings.ollama_timeout}")
-        logger.info(f"Debug Mode: {settings.debug}")
-        logger.info(f"Log Level: {settings.log_level}")
         
         self.bot = Bot(token=settings.telegram_bot_token)
         self.dp = Dispatcher()
