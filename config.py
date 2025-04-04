@@ -28,6 +28,20 @@ class Settings(BaseSettings):
     retrieval_grader_ollama_timeout: int = Field(default=30, env='RETRIEVAL_GRADER_OLLAMA_TIMEOUT')
     retrieval_grader_ollama_max_tokens: int = Field(default=8192, env='RETRIEVAL_GRADER_OLLAMA_MAX_TOKENS')
     
+    # Question Rewriter Ollama settings
+    question_rewriter_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='QUESTION_REWRITER_OLLAMA_BASE_URL')
+    question_rewriter_ollama_model: str = Field(default="qwen2.5-coder", env='QUESTION_REWRITER_OLLAMA_MODEL')
+    question_rewriter_ollama_temperature: float = Field(default=0, env='QUESTION_REWRITER_OLLAMA_TEMPERATURE')
+    question_rewriter_ollama_timeout: int = Field(default=30, env='QUESTION_REWRITER_OLLAMA_TIMEOUT')
+    question_rewriter_ollama_max_tokens: int = Field(default=8192, env='QUESTION_REWRITER_OLLAMA_MAX_TOKENS')
+    
+    # Hallucination Grader Ollama settings
+    hallucination_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='HALLUCINATION_GRADER_OLLAMA_BASE_URL')
+    hallucination_grader_ollama_model: str = Field(default="qwen2.5-coder", env='HALLUCINATION_GRADER_OLLAMA_MODEL')
+    hallucination_grader_ollama_temperature: float = Field(default=0, env='HALLUCINATION_GRADER_OLLAMA_TEMPERATURE')
+    hallucination_grader_ollama_timeout: int = Field(default=30, env='HALLUCINATION_GRADER_OLLAMA_TIMEOUT')
+    hallucination_grader_ollama_max_tokens: int = Field(default=8192, env='HALLUCINATION_GRADER_OLLAMA_MAX_TOKENS')
+    
     # OpenSearch settings
     opensearch_host: str = Field(env='OPENSEARCH_HOST')
     opensearch_port: int = Field(env='OPENSEARCH_PORT')
@@ -41,13 +55,6 @@ class Settings(BaseSettings):
     # Application settings
     debug: bool = Field(default=False, env='DEBUG')
     log_level: str = Field(default="INFO", env='LOG_LEVEL')
-    
-    # Hallucination Grader Ollama settings
-    hallucination_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", env='HALLUCINATION_GRADER_OLLAMA_BASE_URL')
-    hallucination_grader_ollama_model: str = Field(default="qwen2.5-coder", env='HALLUCINATION_GRADER_OLLAMA_MODEL')
-    hallucination_grader_ollama_temperature: float = Field(default=0, env='HALLUCINATION_GRADER_OLLAMA_TEMPERATURE')
-    hallucination_grader_ollama_timeout: int = Field(default=30, env='HALLUCINATION_GRADER_OLLAMA_TIMEOUT')
-    hallucination_grader_ollama_max_tokens: int = Field(default=8192, env='HALLUCINATION_GRADER_OLLAMA_MAX_TOKENS')
     
     model_config = SettingsConfigDict(
         env_file='.env',

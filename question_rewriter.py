@@ -26,31 +26,31 @@ class QuestionRewriter:
         )
 
         self._llm = ChatOllama(
-            base_url=settings.ollama_base_url,
-            model=settings.ollama_model,
-            temperature=settings.ollama_temperature,
-            timeout=settings.ollama_timeout,
+            base_url=settings.question_rewriter_ollama_base_url,
+            model=settings.question_rewriter_ollama_model,
+            temperature=settings.question_rewriter_ollama_temperature,
+            timeout=settings.question_rewriter_ollama_timeout,
             streaming=True,
-            max_tokens=settings.ollama_max_tokens
+            max_tokens=settings.question_rewriter_ollama_max_tokens
         )
 
         structured_llm = self._llm.with_structured_output(RewriteQuestion)
         self.chain = self._prompt | structured_llm
 
-    
     def invoke(self, inputs: dict) -> str:
-        """Grade document relevance to the question."""
+        """Rewrite the question."""
         try:
             result = self.chain.invoke(inputs)
             return result.improved_question
         except Exception as e:
-            logger.error(f"Error in RetrievalGrader.invoke: {str(e)}")
+            logger.error(f"Error in QuestionRewriter.invoke: {str(e)}")
             raise 
 
     async def ainvoke(self, inputs: dict) -> str:
-        """Grade document relevance to the question."""
+        """Rewrite the question asynchronously."""
         try:
             result = await self.chain.ainvoke(inputs)
             return result.improved_question
         except Exception as e:
-            logger.error(f"Error in RetrievalGrader.ainvoke: {str(e)}")
+            logger.error(f"Error in QuestionRewriter.ainvoke: {str(e)}")
+            raise
