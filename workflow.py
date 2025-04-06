@@ -1,10 +1,8 @@
 import logging
 from typing import Annotated, Sequence
 from aiogram import Bot
-from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, MessagesState, START, END
-from pydantic import BaseModel, Field
 import asyncio
 
 from config import settings
@@ -17,12 +15,6 @@ from answer_grader import AnswerGrader
 
 logger = logging.getLogger(__name__)
 
-class GradeDocuments(BaseModel):
-    """Binary score for relevance check on retrieved documents."""
-
-    binary_score: str = Field(
-        description="Documents are relevant to the question, 'yes' or 'no'"
-    )
 
 class ChatState(MessagesState):
     """State for the chat workflow."""
