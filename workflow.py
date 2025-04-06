@@ -30,6 +30,7 @@ class ChatState(MessagesState):
     question: str
     rewrite_question_attempts: int
     documents: Annotated[Sequence[Document], "documents"]
+    generation: str
 
 class ChatChain:
     """Class to handle chat processing logic."""
@@ -177,6 +178,7 @@ class ChatChain:
                         )
         return {"documents": documents, "question": better_question, "rewrite_question_attempts": state["rewrite_question_attempts"] - 1}
 
+
     async def generate_answer(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
         try:
@@ -273,8 +275,6 @@ class WorkflowGraph:
         # Add edges
         self.workflow.add_edge(START, "retrieve_opensearch_documents")
         self.workflow.add_edge("retrieve_opensearch_documents", "grade_opensearch_documents")
-
-
         self.workflow.add_conditional_edges(
             "grade_opensearch_documents",
             self.chat_chain.decide_to_generate,
@@ -284,8 +284,6 @@ class WorkflowGraph:
             },
         )
         self.workflow.add_edge("rewrite_question", "retrieve_opensearch_documents")
-
-
         self.workflow.add_conditional_edges(
             "generate_answer",
             self.chat_chain.grade_generation_v_documents_and_question,

@@ -42,13 +42,18 @@ class TelegramBot:
             initial_state = ChatState(
                 question=message.text,
                 telegram_chat_id=message.chat.id,
-                #TODO the same for other rewrites
                 rewrite_question_attempts=2
             )
             
             # Process through workflow
-            result = await self.workflow.process(initial_state)
-            print(f"---FINAL RESULT: {result}---")
+            result_state = await self.workflow.process(initial_state)
+            print(f"---FINAL RESULT: {result_state['generation']}---")
+            
+            # Send the response back to the user
+            if result_state.get('generation'):
+                await message.answer(result_state['generation'])
+            else:
+                await message.answer("Sorry, I couldn't generate a response.")
             
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
