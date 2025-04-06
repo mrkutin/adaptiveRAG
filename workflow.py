@@ -12,6 +12,8 @@ from open_search_retriever import OpenSearchRetriever
 from opensearch_retrieval_grader import OpenSearchRetrievalGrader
 from question_rewriter import QuestionRewriter
 from answerer import Answerer
+from hallucination_grader import HallucinationGrader
+from answer_grader import AnswerGrader
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,8 @@ class ChatChain:
         self.retrieval_grader = OpenSearchRetrievalGrader()
         self.question_rewriter = QuestionRewriter()
         self.answerer = Answerer()
+        self.hallucination_grader = HallucinationGrader()
+        self.answer_grader = AnswerGrader()
         
     async def retrieve_opensearch_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""
@@ -150,7 +154,7 @@ class ChatChain:
                             message_id=msg.message_id,
                             text=f"Decision: Generate answer"
                         )
-            return "answer_question"
+            return "generate_answer"
     
     
     async def rewrite_question(self, state):
@@ -173,7 +177,7 @@ class ChatChain:
                         )
         return {"documents": documents, "question": better_question, "rewrite_question_attempts": state["rewrite_question_attempts"] - 1}
 
-    async def answer_question(self, state: ChatState) -> ChatState:
+    async def generate_answer(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
         try:
             # Get the user message from history
@@ -211,12 +215,48 @@ class ChatChain:
                 full_response += current_sentence
             
             # Add the AI response to message history
-            state["messages"].append(AIMessage(content=full_response))
+            # state["messages"].append(AIMessage(content=full_response))
             
-            return state
+            return {**state, "generation": full_response}
         except Exception as e:
-            logger.error(f"Error in answer_question: {str(e)}")
+            logger.error(f"Error in generate_answer: {str(e)}")
             raise
+
+    async def grade_generation_v_documents_and_question(self, state):
+        """
+        Determines whether the generation is grounded in the document and answers question.
+
+        Args:
+            state (dict): The current graph state
+
+        Returns:
+            str: Decision for next node to call
+        """
+
+        print("---CHECK HALLUCINATIONS---")
+        question = state["question"]
+        documents = state["documents"]
+        generation = state["generation"]
+
+        grade = await self.hallucination_grader.ainvoke(documents=documents, generation=generation)
+        print(f"---HALLUCINATION GRADE: {grade}---")
+
+        # Check hallucination
+        if grade == "yes":
+            print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
+            # Check question-answering
+            print("---GRADE GENERATION vs QUESTION---")
+            grade = await self.answer_grader.ainvoke(question=question, generation=generation)
+            if grade == "yes":
+                print("---DECISION: GENERATION ADDRESSES QUESTION---")
+                return "useful"
+            else:
+                print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
+                return "not useful"
+        else:
+            print("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
+            return "not supported"
+
 
 class WorkflowGraph:
     """Class to manage the workflow graph."""
@@ -228,7 +268,7 @@ class WorkflowGraph:
         self.workflow.add_node("retrieve_opensearch_documents", self.chat_chain.retrieve_opensearch_documents)
         self.workflow.add_node("grade_opensearch_documents", self.chat_chain.grade_opensearch_documents)  
         self.workflow.add_node("rewrite_question", self.chat_chain.rewrite_question)
-        self.workflow.add_node("answer_question", self.chat_chain.answer_question)
+        self.workflow.add_node("generate_answer", self.chat_chain.generate_answer)
         
         # Add edges
         self.workflow.add_edge(START, "retrieve_opensearch_documents")
@@ -240,15 +280,22 @@ class WorkflowGraph:
             self.chat_chain.decide_to_generate,
             {
                 "rewrite_question": "rewrite_question",
-                "answer_question": "answer_question",
+                "generate_answer": "generate_answer",
             },
         )
         self.workflow.add_edge("rewrite_question", "retrieve_opensearch_documents")
 
 
-        # self.workflow.add_edge("grade_opensearch_documents", "answer_question")
-        self.workflow.add_edge("answer_question", END)
-        
+        self.workflow.add_conditional_edges(
+            "generate_answer",
+            self.chat_chain.grade_generation_v_documents_and_question,
+            {
+                "not supported": "generate_answer",
+                "useful": END,
+                "not useful": "rewrite_question",
+            },
+        )
+
         # Compile the graph
         self.app = self.workflow.compile()
     

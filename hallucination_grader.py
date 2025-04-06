@@ -3,13 +3,14 @@ from langchain_ollama import ChatOllama
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 from config import settings
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
 class GradeHallucinations(BaseModel):
     """Binary score for hallucination present in generation answer."""
-    binary_score: str = Field(
-        description="Answer is grounded in the facts, 'yes' or 'no'"
+    binary_score: Literal["yes", "no"] = Field(
+        description="Answer is relevant to the documents - must be exactly 'yes' or 'no'"
     )
 
 class HallucinationGrader:
@@ -17,11 +18,19 @@ class HallucinationGrader:
     def __init__(self):
         self._prompt = PromptTemplate(
             input_variables=["generation", "documents"],
-            template="""
-            You are a grader assessing whether an LLM generation is grounded in / supported by a set of retrieved facts.
-            Give a binary score 'yes' or 'no'. 'Yes' means that the answer is grounded in / supported by the set of facts.
-            Set of facts: \n\n {documents} \n\n LLM generation: {generation}
-            """
+            template="""You are a grader assessing whether an LLM generation is relevant to and supported by a set of retrieved documents.
+
+Your task is to respond with EXACTLY 'yes' or 'no':
+- Answer 'yes' if the generation's content is supported by and relevant to the documents
+- Answer 'no' if the generation contains information not found in or contradicting the documents
+
+LLM generation to grade: 
+{generation}
+
+Reference documents:
+{documents}
+
+Respond with ONLY 'yes' or 'no':"""
         )
 
         self._llm = ChatOllama(
