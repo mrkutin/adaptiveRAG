@@ -249,13 +249,13 @@ class ChatChain:
             grade = await self.answer_grader.ainvoke(question=question, generation=generation)
             if grade == "yes":
                 print("---DECISION: GENERATION ADDRESSES QUESTION---")
-                return "useful"
+                return "adequate generation"
             else:
                 print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
-                return "not useful"
+                return "inadequate generation"
         else:
             print("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
-            return "not supported"
+            return "not supported generation"
 
 
 class WorkflowGraph:
@@ -290,9 +290,9 @@ class WorkflowGraph:
             "generate_answer",
             self.chat_chain.grade_generation_v_documents_and_question,
             {
-                "not supported": "generate_answer",
-                "useful": END,
-                "not useful": "rewrite_question",
+                "not supported generation": "generate_answer",
+                "adequate generation": END,
+                "inadequate generation": "rewrite_question",
             },
         )
 
