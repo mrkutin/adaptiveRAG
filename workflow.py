@@ -199,49 +199,48 @@ class ChatChain:
             # Send initial status message
             status_message = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text="🤔 Checking if the answer is relevant to the documents and question..."
+                text="🤔 Checking answer quality..."
             )
 
-            # Grade answer relevance
-            answer_grade = await self.answer_grader.ainvoke(
-                question=state["question"],
-                generation=state["generation"]
-            )
-            
-            # Send answer grading result
-            await self.bot.edit_message_text(
-                text=f"✓ Answer relevance check: {answer_grade}",
-                chat_id=state["telegram_chat_id"],
-                message_id=status_message.message_id
-            )
-
-            # Grade hallucinations
-            await self.bot.edit_message_text(
-                text="🔍 Checking for hallucinations...",
-                chat_id=state["telegram_chat_id"],
-                message_id=status_message.message_id
+            # Run both grading operations concurrently
+            answer_grade, hallucination_grade = await asyncio.gather(
+                self.answer_grader.ainvoke(
+                    question=state["question"],
+                    generation=state["generation"]
+                ),
+                self.hallucination_grader.ainvoke(
+                    generation=state["generation"],
+                    documents="\n\n".join(doc.page_content for doc in state["documents"])
+                )
             )
 
-            hallucination_grade = await self.hallucination_grader.ainvoke(
-                generation=state["generation"],
-                documents="\n\n".join(doc.page_content for doc in state["documents"])
-            )
-
-            # Send final grading results
-            await self.bot.edit_message_text(
-                text=f"✅ Grading complete:\n"
-                f"• Answer relevance: {answer_grade}\n"
-                f"• Factual accuracy: {hallucination_grade}",
-                chat_id=state["telegram_chat_id"],
-                message_id=status_message.message_id
-            )
-
-            # Original flow logic
+            # Handle different outcomes with specific messages
             if answer_grade == "no":
+                await self.bot.edit_message_text(
+                    text=f"❌ Answer does not address the question\n"
+                    f"• Answer relevance: {answer_grade}\n"
+                    f"• Factual accuracy: {hallucination_grade}",
+                    chat_id=state["telegram_chat_id"],
+                    message_id=status_message.message_id
+                )
                 return "inadequate generation"
             elif hallucination_grade == "no":
+                await self.bot.edit_message_text(
+                    text=f"⚠️ Answer contains unsupported information\n"
+                    f"• Answer relevance: {answer_grade}\n"
+                    f"• Factual accuracy: {hallucination_grade}",
+                    chat_id=state["telegram_chat_id"],
+                    message_id=status_message.message_id
+                )
                 return "not supported generation"
             else:
+                await self.bot.edit_message_text(
+                    text=f"✅ Answer is relevant and factually accurate\n"
+                    f"• Answer relevance: {answer_grade}\n"
+                    f"• Factual accuracy: {hallucination_grade}",
+                    chat_id=state["telegram_chat_id"],
+                    message_id=status_message.message_id
+                )
                 return "adequate generation"
 
         except Exception as e:
