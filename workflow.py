@@ -174,44 +174,27 @@ class ChatChain:
     async def generate_answer(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
         try:
-            # Get the user message from history
-            question = state["question"]
-
             # Send initial "processing" message
             msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text=f"Answering your question: {question}"
+                text="Generating answer..."
             )
 
-            current_sentence = ""
-            full_response = ""
-            
-            # Stream the response
+            # Generate response
             formatted_docs = "\n\n".join(doc.page_content for doc in state["documents"])
+            response = await self.answerer.ainvoke({
+                "context": formatted_docs, 
+                "question": state["question"]
+            })
+
+            # Update message to indicate completion
+            await self.bot.edit_message_text(
+                chat_id=state["telegram_chat_id"],
+                message_id=msg.message_id,
+                text="✅ Answer generated successfully"
+            )
             
-            async for chunk in self.answerer.astream({"context": formatted_docs, "question": question}):
-                if chunk:
-                    current_sentence += chunk
-                    
-                    # Check if we have a complete sentence
-                    if any(current_sentence.strip().endswith(p) for p in ['.', '!', '?', ':', ';']):
-                        full_response += current_sentence
-                        current_sentence = ""
-                        # Update the message with the accumulated response
-                        await self.bot.edit_message_text(
-                            chat_id=state["telegram_chat_id"],
-                            message_id=msg.message_id,
-                            text=full_response
-                        )
-            
-            # Add any remaining text
-            if current_sentence:
-                full_response += current_sentence
-            
-            # Add the AI response to message history
-            # state["messages"].append(AIMessage(content=full_response))
-            
-            return {**state, "generation": full_response}
+            return {**state, "generation": response}
         except Exception as e:
             logger.error(f"Error in generate_answer: {str(e)}")
             raise

@@ -34,7 +34,6 @@ class Answerer:
             model=settings.answerer_ollama_model,
             temperature=settings.answerer_ollama_temperature,
             timeout=settings.answerer_ollama_timeout,
-            streaming=True,
             max_tokens=settings.answerer_ollama_max_tokens
         )
 
@@ -43,3 +42,7 @@ class Answerer:
     def astream(self, inputs: dict):
         """Stream the answer generation."""
         return self.chain.astream(inputs)
+    
+    def ainvoke(self, inputs: dict):
+        """Invoke the answer generation."""
+        return self.chain.ainvoke(inputs)
