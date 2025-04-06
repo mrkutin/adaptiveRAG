@@ -2,13 +2,14 @@ import logging
 from langchain_ollama import ChatOllama
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
+from typing import Literal
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 class GradeAnswer(BaseModel):
     """Binary score to assess answer addresses question."""
-    binary_score: str = Field(
+    binary_score: Literal["yes", "no"] = Field(
         description="Answer addresses the question, 'yes' or 'no'"
     )
 

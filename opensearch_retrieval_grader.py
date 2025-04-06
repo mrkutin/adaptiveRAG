@@ -3,12 +3,12 @@ from langchain_ollama import ChatOllama
 from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 from config import settings
-
+from typing import Literal
 logger = logging.getLogger(__name__)
 
 class GradeDocuments(BaseModel):
     """Binary score for relevance check on retrieved documents."""
-    binary_score: str = Field(
+    binary_score: Literal["yes", "no"] = Field(
         description="Documents are relevant to the question, 'yes' or 'no'"
     )
 
