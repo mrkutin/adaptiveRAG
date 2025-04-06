@@ -40,20 +40,19 @@ class ChatChain:
         try:
             msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text="Retrieving documents..."
+                text="🔍 Retrieving documents..."
             )
 
             # Get the last user message
             question = state["question"]
-            # print(f"================ CHAIN QUERY: {question}")
             
             # Retrieve documents
             docs = await self.opensearch_retriever.ainvoke(question)
             await self.bot.edit_message_text(
-                            chat_id=state["telegram_chat_id"],
-                            message_id=msg.message_id,
-                            text=f"Retrieved {len(docs)} documents"
-                        )
+                chat_id=state["telegram_chat_id"],
+                message_id=msg.message_id,
+                text=f"📚 Retrieved {len(docs)} documents"
+            )
             
             return {**state, "documents": docs}
         except Exception as e:
@@ -84,11 +83,9 @@ class ChatChain:
     async def grade_opensearch_documents(self, state):
         """Determines whether the retrieved documents are relevant to the question."""
         try:
-            print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
-            
             status_msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text="Checking document relevance to question..."
+                text="🤔 Checking document relevance to question..."
             )
 
             # Grade all documents concurrently
@@ -104,7 +101,7 @@ class ChatChain:
             await self.bot.edit_message_text(
                 chat_id=state["telegram_chat_id"],
                 message_id=status_msg.message_id,
-                text=f"{len(filtered_docs)} out of {len(state['documents'])} documents graded as relevant"
+                text=f"📊 {len(filtered_docs)} out of {len(state['documents'])} documents graded as relevant"
             )
             
             return {**state, "documents": filtered_docs}
@@ -116,45 +113,40 @@ class ChatChain:
                 await self.bot.edit_message_text(
                     chat_id=state["telegram_chat_id"],
                     message_id=status_msg.message_id,
-                    text="Error occurred while grading documents"
+                    text="❌ Error occurred while grading documents"
                 )
             except:
                 pass
             raise
     
     async def decide_to_generate(self, state):
-        print("---ASSESS GRADED DOCUMENTS---")
         msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text="Assessing graded documents..."
+                text="🔄 Assessing graded documents..."
         )
         filtered_documents = state["documents"]
         rewrite_question_attempts = state['rewrite_question_attempts']
 
         if not filtered_documents and rewrite_question_attempts > 1:
-            print(f"---RETRIEVE ATTEMPTS: {rewrite_question_attempts}---")
-            print("---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---")
             await self.bot.edit_message_text(
-                            chat_id=state["telegram_chat_id"],
-                            message_id=msg.message_id,
-                            text=f"All documents are not relevant to question, transforming query..."
-                        )
+                chat_id=state["telegram_chat_id"],
+                message_id=msg.message_id,
+                text=f"❌ All documents are not relevant to question, transforming query..."
+            )
             return "rewrite_question"
         else:
-            print("---DECISION: GENERATE---")
             await self.bot.edit_message_text(
-                            chat_id=state["telegram_chat_id"],
-                            message_id=msg.message_id,
-                            text=f"Decision: Generate answer"
-                        )
+                chat_id=state["telegram_chat_id"],
+                message_id=msg.message_id,
+                text=f"✨ Decision: Generate answer"
+            )
             return "generate_answer"
     
     
     async def rewrite_question(self, state):
-        print("---REWRITE QUESTION---")
         msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text="Decision: Rewrite question"
+                text="✏️ Rewriting question..."
         )
 
         question = state["question"]
@@ -164,20 +156,19 @@ class ChatChain:
         better_question = await self.question_rewriter.ainvoke({"question": question})
         print(f"---NEW QUESTION: {better_question}---")
         await self.bot.edit_message_text(
-                            chat_id=state["telegram_chat_id"],
-                            message_id=msg.message_id,
-                            text=f"Rewritten question: {better_question}"
-                        )
+            chat_id=state["telegram_chat_id"],
+            message_id=msg.message_id,
+            text=f"✅ Rewritten question: {better_question}"
+        )
         return {"documents": documents, "question": better_question, "rewrite_question_attempts": state["rewrite_question_attempts"] - 1}
 
 
     async def generate_answer(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
         try:
-            # Send initial "processing" message
             msg = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
-                text="Generating answer..."
+                text="🤖 Generating answer..."
             )
 
             # Generate response
