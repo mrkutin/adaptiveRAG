@@ -21,6 +21,7 @@ class ChatState(MessagesState):
     telegram_chat_id: int
     question: str
     rewrite_question_attempts: int
+    regenerate_answer_attempts: int  # New counter for answer regeneration
     documents: Annotated[Sequence[Document], "documents"]
     generation: str
 
@@ -196,13 +197,11 @@ class ChatChain:
     ) -> ChatState:
         """Grade the generation against documents and question."""
         try:
-            # Send initial status message
             status_message = await self.bot.send_message(
                 chat_id=state["telegram_chat_id"],
                 text="🤔 Checking answer quality..."
             )
 
-            # Run both grading operations concurrently
             answer_grade, hallucination_grade = await asyncio.gather(
                 self.answer_grader.ainvoke(
                     question=state["question"],
@@ -214,25 +213,41 @@ class ChatChain:
                 )
             )
 
-            # Handle different outcomes with specific messages
-            if answer_grade == "no":
+            regenerate_attempts = state["regenerate_answer_attempts"] # Default to 3 if not set
+            rewrite_attempts = state["rewrite_question_attempts"]
+
+            if answer_grade == "no" and rewrite_attempts > 1:
                 await self.bot.edit_message_text(
-                    text=f"❌ Answer does not address the question\n"
+                    text=f"❌ Answer does not address the question (will try rewriting)\n"
                     f"• Answer relevance: {answer_grade}\n"
-                    f"• Factual accuracy: {hallucination_grade}",
+                    f"• Factual accuracy: {hallucination_grade}\n"
+                    f"• Remaining question rewrites: {rewrite_attempts - 1}",
                     chat_id=state["telegram_chat_id"],
                     message_id=status_message.message_id
                 )
                 return "inadequate generation"
-            elif hallucination_grade == "no":
+            elif hallucination_grade == "no" and regenerate_attempts > 1:
                 await self.bot.edit_message_text(
-                    text=f"⚠️ Answer contains unsupported information\n"
+                    text=f"⚠️ Answer contains unsupported information (will try regenerating)\n"
                     f"• Answer relevance: {answer_grade}\n"
-                    f"• Factual accuracy: {hallucination_grade}",
+                    f"• Factual accuracy: {hallucination_grade}\n"
+                    f"• Remaining generation attempts: {regenerate_attempts - 1}",
                     chat_id=state["telegram_chat_id"],
                     message_id=status_message.message_id
                 )
+                # Update state with decremented regeneration attempts
+                state["regenerate_answer_attempts"] = regenerate_attempts - 1
                 return "not supported generation"
+            elif answer_grade == "no" or hallucination_grade == "no":
+                await self.bot.edit_message_text(
+                    text=f"❌ Unable to generate satisfactory answer after multiple attempts\n"
+                    f"• Answer relevance: {answer_grade}\n"
+                    f"• Factual accuracy: {hallucination_grade}\n"
+                    f"• No attempts remaining",
+                    chat_id=state["telegram_chat_id"],
+                    message_id=status_message.message_id
+                )
+                return "unacceptable generation"
             else:
                 await self.bot.edit_message_text(
                     text=f"✅ Answer is relevant and factually accurate\n"
@@ -281,8 +296,9 @@ class WorkflowGraph:
             self.chat_chain.grade_generation_v_documents_and_question,
             {
                 "not supported generation": "generate_answer",
-                "adequate generation": END,
                 "inadequate generation": "rewrite_question",
+                "adequate generation": END,
+                "unacceptable generation": END,
             },
         )
 

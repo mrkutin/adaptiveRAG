@@ -42,7 +42,8 @@ class TelegramBot:
             initial_state = ChatState(
                 question=message.text,
                 telegram_chat_id=message.chat.id,
-                rewrite_question_attempts=2
+                rewrite_question_attempts=2,
+                regenerate_answer_attempts=3
             )
             
             # Process through workflow
