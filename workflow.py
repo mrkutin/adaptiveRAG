@@ -216,40 +216,67 @@ class ChatChain:
             logger.error(f"Error in generate_answer: {str(e)}")
             raise
 
-    async def grade_generation_v_documents_and_question(self, state):
-        """
-        Determines whether the generation is grounded in the document and answers question.
+    async def grade_generation_v_documents_and_question(
+        self,
+        state: ChatState,
+    ) -> ChatState:
+        """Grade the generation against documents and question."""
+        try:
+            # Send initial status message
+            status_message = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="🤔 Checking if the answer is relevant to the documents and question..."
+            )
 
-        Args:
-            state (dict): The current graph state
+            # Grade answer relevance
+            answer_grade = await self.answer_grader.ainvoke(
+                question=state["question"],
+                generation=state["generation"]
+            )
+            
+            # Send answer grading result
+            await self.bot.edit_message_text(
+                text=f"✓ Answer relevance check: {answer_grade}",
+                chat_id=state["telegram_chat_id"],
+                message_id=status_message.message_id
+            )
 
-        Returns:
-            str: Decision for next node to call
-        """
+            # Grade hallucinations
+            await self.bot.edit_message_text(
+                text="🔍 Checking for hallucinations...",
+                chat_id=state["telegram_chat_id"],
+                message_id=status_message.message_id
+            )
 
-        print("---CHECK HALLUCINATIONS---")
-        question = state["question"]
-        documents = state["documents"]
-        generation = state["generation"]
+            hallucination_grade = await self.hallucination_grader.ainvoke(
+                generation=state["generation"],
+                documents="\n\n".join(doc.page_content for doc in state["documents"])
+            )
 
-        grade = await self.hallucination_grader.ainvoke(documents=documents, generation=generation)
-        print(f"---HALLUCINATION GRADE: {grade}---")
+            # Send final grading results
+            await self.bot.edit_message_text(
+                text=f"✅ Grading complete:\n"
+                f"• Answer relevance: {answer_grade}\n"
+                f"• Factual accuracy: {hallucination_grade}",
+                chat_id=state["telegram_chat_id"],
+                message_id=status_message.message_id
+            )
 
-        # Check hallucination
-        if grade == "yes":
-            print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
-            # Check question-answering
-            print("---GRADE GENERATION vs QUESTION---")
-            grade = await self.answer_grader.ainvoke(question=question, generation=generation)
-            if grade == "yes":
-                print("---DECISION: GENERATION ADDRESSES QUESTION---")
-                return "adequate generation"
-            else:
-                print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
+            # Original flow logic
+            if answer_grade == "no":
                 return "inadequate generation"
-        else:
-            print("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
-            return "not supported generation"
+            elif hallucination_grade == "no":
+                return "not supported generation"
+            else:
+                return "adequate generation"
+
+        except Exception as e:
+            logger.error(f"Error in grade_generation_v_documents_and_question: {str(e)}")
+            await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text=f"❌ Error while grading response: {str(e)}"
+            )
+            raise
 
 
 class WorkflowGraph:
