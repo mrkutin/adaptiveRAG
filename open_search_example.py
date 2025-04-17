@@ -26,20 +26,23 @@ client = OpenSearch(
 )
 
 result = client.search(index="bus-prod-info-*", body={
-    "min_score": 10.0,
-    "size": 501,
+    "size": 100, 
     "query": {
         "bool": {
-            "must": {
-                "match": {
-                    "msg": "mindbox upload error"
-                },
-            },
-
             "filter": [
-                {'term': {'level': 'error'}},
-                {'term': {'ns': 'prod'}},
-                {'range': {'time': {'gte': 'now/d'}}}
+                {"term": {"level": "error"}},
+                {
+                    "range": {
+                        "time": {
+                            "gte": "2025-04-11T00:00:00Z",
+                            "lte": "2025-04-11T23:59:59Z",
+                            "time_zone": "+03:00"
+                        }
+                    }
+                }
+            ],
+            "must": [
+                {"term": {"msg": "API"}}
             ]
         }
     }

@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     opensearch_index: str = Field(json_schema_extra={"env": "OPENSEARCH_INDEX"})
     opensearch_use_ssl: bool = Field(json_schema_extra={"env": "OPENSEARCH_USE_SSL"})
     opensearch_verify_certs: bool = Field(json_schema_extra={"env": "OPENSEARCH_VERIFY_CERTS"})
-    opensearch_query_size: int = Field(json_schema_extra={"env": "OPENSEARCH_QUERY_SIZE"})
+    opensearch_query_size: int = Field(default=20, json_schema_extra={"env": "OPENSEARCH_QUERY_SIZE", "default": 20})
     
     # Application settings
     debug: bool = Field(default=False, json_schema_extra={"env": "DEBUG"})

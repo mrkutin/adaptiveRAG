@@ -279,6 +279,17 @@ class OpenSearchQueryConstructor:
         # Convert the Pydantic model to a dict
         return result.model_dump()
 
+    async def aconstruct_query(self, question: str) -> Dict[str, Any]:
+        """Construct an OpenSearch query from a natural language question asynchronously."""
+        # Format the prompt with examples
+        result = await self.chain.ainvoke({
+            "examples": self._format_examples(),
+            "question": question
+        })
+        
+        # Convert the Pydantic model to a dict
+        return result.model_dump()
+
 if __name__ == "__main__":
     constructor = OpenSearchQueryConstructor()
     
