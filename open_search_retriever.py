@@ -3,6 +3,7 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import Field, PrivateAttr
+from opensearch_query_constructor import OpenSearchQueryConstructor
 from opensearchpy import OpenSearch, AsyncOpenSearch
 from pprint import pformat
 from config import settings
@@ -31,6 +32,7 @@ class OpenSearchRetriever(BaseRetriever):
     # Use private attributes
     _client: OpenSearch = PrivateAttr()
     _aclient: AsyncOpenSearch = PrivateAttr()
+    _query_constructor: OpenSearchQueryConstructor = PrivateAttr()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -53,6 +55,7 @@ class OpenSearchRetriever(BaseRetriever):
             ssl_show_warn=False
         )
         
+        self._query_constructor = OpenSearchQueryConstructor()
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
@@ -134,6 +137,7 @@ class OpenSearchRetriever(BaseRetriever):
         docs = []
         for hit in result["hits"]["hits"]:
             source = hit["_source"]
+            print(f"--- DOC: {source}... END ---")
             docs.append(
                 Document(
                     page_content=source.get("msg", ""),

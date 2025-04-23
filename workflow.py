@@ -34,8 +34,8 @@ class ChatChain:
         self.retrieval_grader = OpenSearchRetrievalGrader()
         self.question_rewriter = QuestionRewriter()
         self.answerer = Answerer()
-        self.hallucination_grader = HallucinationGrader()
-        self.answer_grader = AnswerGrader()
+        # self.hallucination_grader = HallucinationGrader()
+        # self.answer_grader = AnswerGrader()
         
     async def retrieve_opensearch_documents(self, state: ChatState) -> ChatState:
         """Retrieve relevant documents for the query."""

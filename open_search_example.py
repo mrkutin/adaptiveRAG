@@ -26,7 +26,7 @@ client = OpenSearch(
 )
 
 result = client.search(index="bus-prod-info-*", body={
-    "size": 100, 
+    "size": 20, 
     "query": {
         "bool": {
             "filter": [
@@ -34,35 +34,20 @@ result = client.search(index="bus-prod-info-*", body={
                 {
                     "range": {
                         "time": {
-                            "gte": "2025-04-11T00:00:00Z",
-                            "lte": "2025-04-11T23:59:59Z",
+                            "gte": "2025-04-23T00:00:00",
+                            "lte": "2025-04-23T23:59:59",
                             "time_zone": "+03:00"
                         }
                     }
                 }
             ],
             "must": [
-                {"term": {"msg": "API"}}
+                {"match": {"msg": "API service error"}}
             ]
         }
     }
 })
 
-
-
-# result = client.search(index="bus-prod-info-*", body={
-#     "size": 1000,
-#     "query": {
-#         "bool": {
-#             "should": [
-#                 # { "match": { "msg": "mindbox" } },
-#                 { "match": { "msg": "uploaded" } },
-#                 { "match": { "msg": "error" } }
-#             ],
-#             "minimum_should_match": 2
-#         }
-#       }
-#     })
 
 
 
