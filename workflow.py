@@ -306,6 +306,7 @@ class WorkflowGraph:
 
         # Compile the graph
         self.app = self.workflow.compile()
+        self.app.get_graph().print_ascii()
     
     async def process(self, initial_state: ChatState):
         """Process a message through the workflow."""
