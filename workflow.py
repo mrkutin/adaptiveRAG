@@ -13,6 +13,9 @@ from answerer import Answerer
 from hallucination_grader import HallucinationGrader
 from answer_grader import AnswerGrader
 
+from IPython.display import Image, display
+from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
+
 logger = logging.getLogger(__name__)
 
 
@@ -307,6 +310,10 @@ class WorkflowGraph:
         # Compile the graph
         self.app = self.workflow.compile()
         self.app.get_graph().print_ascii()
+        self.app.get_graph().draw_png(
+                    output_file_path="workflow_graph.png",
+                    fontname="Arial",
+                )
     
     async def process(self, initial_state: ChatState):
         """Process a message through the workflow."""
