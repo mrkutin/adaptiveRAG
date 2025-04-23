@@ -1,4 +1,6 @@
-# USAGE: pytest test_opensearch_query_constructor.py
+# USAGE: 
+# pytest test_opensearch_query_constructor.py
+# pytest test_opensearch_query_constructor.py::test_api_service_errors_specific_date
 
 import pytest
 from opensearch_query_constructor import OpenSearchQueryConstructor
