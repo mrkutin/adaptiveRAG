@@ -137,7 +137,7 @@ class OpenSearchRetriever(BaseRetriever):
         docs = []
         for hit in result["hits"]["hits"]:
             source = hit["_source"]
-            print(f"--- DOC: {source}... END ---")
+            print(f"--- DOC: {source} END ---")
             docs.append(
                 Document(
                     page_content=source.get("msg", ""),
