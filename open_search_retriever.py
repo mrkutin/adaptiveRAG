@@ -33,7 +33,7 @@ class OpenSearchRetriever(BaseRetriever):
     ollama_max_tokens: int = Field(default=settings.retriever_ollama_max_tokens)
     
     # Use private attributes
-    _client: OpenSearch = PrivateAttr()
+    _client: AsyncOpenSearch = PrivateAttr()
     _query_constructor: OpenSearchQueryConstructor = PrivateAttr()
     _translator: CustomOpenSearchTranslator = PrivateAttr()
 
@@ -41,7 +41,16 @@ class OpenSearchRetriever(BaseRetriever):
         super().__init__(**kwargs)
 
         # Initialize OpenSearch client
-        self._client = AsyncOpenSearch(
+        self._client = OpenSearch(
+            hosts=[{'host': self.host, 'port': self.port}],
+            http_auth=(self.username, self.password) if self.username else None,
+            use_ssl=self.use_ssl,
+            verify_certs=self.verify_certs,
+            ssl_show_warn=False
+        )
+
+        # Initialize AsyncOpenSearch client
+        self._aclient = AsyncOpenSearch(
             hosts=[{'host': self.host, 'port': self.port}],
             http_auth=(self.username, self.password) if self.username else None,
             use_ssl=self.use_ssl,
@@ -118,7 +127,7 @@ class OpenSearchRetriever(BaseRetriever):
         print("--------------------------------")
         
         # Execute search
-        result = await self._client.search(
+        result = await self._aclient.search(
             index=self.index,
             body={
                 "query": opensearch_query,
