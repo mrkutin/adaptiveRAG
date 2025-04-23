@@ -4,13 +4,9 @@ from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import Field, PrivateAttr
 from opensearchpy import OpenSearch, AsyncOpenSearch
-from open_search_translator import CustomOpenSearchTranslator
 from pprint import pformat
 from config import settings
 
-from opensearch_query_constructor import OpenSearchQueryConstructor
-
-print("======== settings.opensearch_query_size: ", settings.opensearch_query_size)
 
 class OpenSearchRetriever(BaseRetriever):
     """A custom retriever that searches documents in OpenSearch with query translation."""
@@ -33,9 +29,8 @@ class OpenSearchRetriever(BaseRetriever):
     ollama_max_tokens: int = Field(default=settings.retriever_ollama_max_tokens)
     
     # Use private attributes
-    _client: AsyncOpenSearch = PrivateAttr()
-    _query_constructor: OpenSearchQueryConstructor = PrivateAttr()
-    _translator: CustomOpenSearchTranslator = PrivateAttr()
+    _client: OpenSearch = PrivateAttr()
+    _aclient: AsyncOpenSearch = PrivateAttr()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -58,8 +53,6 @@ class OpenSearchRetriever(BaseRetriever):
             ssl_show_warn=False
         )
         
-        self._query_constructor = OpenSearchQueryConstructor()
-        self._translator = CustomOpenSearchTranslator()
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
