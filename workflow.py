@@ -291,8 +291,8 @@ class WorkflowGraph:
             },
         )
         self.workflow.add_edge("rewrite_question", "retrieve_opensearch_documents")
-
         self.workflow.add_edge("generate_answer", END)
+
         # self.workflow.add_conditional_edges(
         #     "generate_answer",
         #     self.chat_chain.grade_generation_v_documents_and_question,
