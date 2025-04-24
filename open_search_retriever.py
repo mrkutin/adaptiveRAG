@@ -21,14 +21,7 @@ class OpenSearchRetriever(BaseRetriever):
     use_ssl: bool = Field(default=settings.opensearch_use_ssl)
     verify_certs: bool = Field(default=settings.opensearch_verify_certs)
     opensearch_query_size: int = Field(default=settings.opensearch_query_size)
-    
-    # Ollama configuration for query translation
-    ollama_base_url: str = Field(default=settings.retriever_ollama_base_url)
-    ollama_model: str = Field(default=settings.retriever_ollama_model)
-    ollama_temperature: float = Field(default=settings.retriever_ollama_temperature)
-    ollama_timeout: int = Field(default=settings.retriever_ollama_timeout)
-    ollama_max_tokens: int = Field(default=settings.retriever_ollama_max_tokens)
-    
+        
     # Use private attributes
     _client: OpenSearch = PrivateAttr()
     _aclient: AsyncOpenSearch = PrivateAttr()

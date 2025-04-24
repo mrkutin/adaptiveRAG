@@ -46,3 +46,5 @@ htmlcov/
 
 # Ollama
 models/ 
+code_base/
+chroma_db/
