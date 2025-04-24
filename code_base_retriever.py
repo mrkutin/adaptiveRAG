@@ -10,6 +10,13 @@ from typing import List
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
+from langchain.chains.query_constructor.base import (
+    StructuredQueryOutputParser,
+    get_query_constructor_prompt,
+)
+from langchain_community.query_constructors.chroma import ChromaTranslator
+from langchain.retrievers.self_query.base import SelfQueryRetriever
+from langchain_ollama import ChatOllama
 from pydantic import Field, PrivateAttr
 
 
@@ -55,13 +62,57 @@ class CodeBaseRetriever(BaseRetriever):
         #TODO  Load documents
         docs = self._loader.load()
         print(f"Codebase loaded successfully! Docs loaded: {len(docs)}")
+        
+        # Add filename to metadata
+        for doc in docs:
+            source = doc.metadata.get("source", "")
+            doc.metadata["filename"] = source.split("/")[-1] if source else ""
+        
         self._vector_store.add_documents(documents=docs)
         print(f"Documents added to vector store successfully!")
         
-        # Initialize retriever
-        self._retriever = self._vector_store.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": self.k}
+        # Initialize LLM for query construction
+        llm = ChatOllama(
+            model="qwen2.5-coder",
+            temperature=0
+        )
+        
+        # Define metadata field info
+        metadata_field_info = [
+            {
+                "name": "source",
+                "description": "The full file path of the code, e.g. 'code_base/enterprise-service-bus/services/one-c.service.js'",
+                "type": "string"
+            },
+            {
+                "name": "filename",
+                "description": "The name of the file, e.g. 'one-c.service.js'",
+                "type": "string"
+            },
+            {
+                "name": "language",
+                "description": "The programming language of the code",
+                "type": "string"
+            }
+        ]
+        
+        # Define document content description
+        document_content_description = "Code files from the codebase. When users ask about specific files, filter by the filename field. For example, if they ask 'what is in one-c.service.js', filter for filename equal to 'one-c.service.js'."
+        
+        # Create query constructor
+        prompt = get_query_constructor_prompt(
+            document_content_description,
+            metadata_field_info
+        )
+        output_parser = StructuredQueryOutputParser.from_components()
+        query_constructor = prompt | llm | output_parser
+        
+        # Initialize self-query retriever
+        self._retriever = SelfQueryRetriever(
+            query_constructor=query_constructor,
+            vectorstore=self._vector_store,
+            structured_query_translator=ChromaTranslator(),
+            verbose=True
         )
 
     def _get_relevant_documents(
@@ -76,7 +127,7 @@ class CodeBaseRetriever(BaseRetriever):
         Returns:
             List of found documents
         """
-        return self._retriever.invoke(query, filter={"source": "code_base/enterprise-service-bus/services/one-c.service.js"})
+        return self._retriever.invoke(query)
 
     async def _aget_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
