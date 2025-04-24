@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, json_schema_extra={"env": "DEBUG"})
     log_level: str = Field(default="INFO", json_schema_extra={"env": "LOG_LEVEL"})
     
+    # CodeBaseRetriever settings
+    codebase_path: str = Field(default="./code_base/enterprise-service-bus", json_schema_extra={"env": "CODEBASE_PATH"})
+    codebase_file_pattern: str = Field(default="**/*", json_schema_extra={"env": "CODEBASE_FILE_PATTERN"})
+    codebase_file_extensions: List[str] = Field(default=[".js"], json_schema_extra={"env": "CODEBASE_FILE_EXTENSIONS"})
+    codebase_language: str = Field(default="js", json_schema_extra={"env": "CODEBASE_LANGUAGE"})
+    codebase_embedding_model: str = Field(default="unclemusclez/jina-embeddings-v2-base-code", json_schema_extra={"env": "CODEBASE_EMBEDDING_MODEL"})
+    codebase_k: int = Field(default=1, json_schema_extra={"env": "CODEBASE_K"})
     
     model_config = SettingsConfigDict(
         env_file='.env',

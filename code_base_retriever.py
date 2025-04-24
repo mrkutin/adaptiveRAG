@@ -17,18 +17,12 @@ from langchain.retrievers.self_query.base import SelfQueryRetriever
 from langchain_ollama import ChatOllama
 from pydantic import Field, PrivateAttr
 
+from config import settings
+
 
 class CodeBaseRetriever(BaseRetriever):
     """A custom retriever that searches documents in codebase using vector store."""
 
-    # Configuration
-    codebase_path: str = Field(default="./code_base/enterprise-service-bus")
-    file_pattern: str = Field(default="**/*")
-    file_extensions: List[str] = Field(default=[".js"])
-    language: str = Field(default="js")
-    embedding_model: str = Field(default="unclemusclez/jina-embeddings-v2-base-code")
-    k: int = Field(default=1)
-    
     # Use private attributes
     _loader: GenericLoader = PrivateAttr()
     _embeddings: OllamaEmbeddings = PrivateAttr()
@@ -40,14 +34,14 @@ class CodeBaseRetriever(BaseRetriever):
         
         # Initialize loader
         self._loader = GenericLoader.from_filesystem(
-            self.codebase_path,
-            glob=self.file_pattern,
-            suffixes=self.file_extensions,
-            parser=LanguageParser(language=self.language)
+            settings.codebase_path,
+            glob=settings.codebase_file_pattern,
+            suffixes=settings.codebase_file_extensions,
+            parser=LanguageParser(language=settings.codebase_language)
         )
         
         # Initialize embeddings
-        self._embeddings = OllamaEmbeddings(model=self.embedding_model)
+        self._embeddings = OllamaEmbeddings(model=settings.codebase_embedding_model)
         
         # Initialize vector store (in-memory)
         self._vector_store = Chroma(
@@ -69,8 +63,8 @@ class CodeBaseRetriever(BaseRetriever):
         
         # Initialize LLM for query construction
         llm = ChatOllama(
-            model="qwen2.5-coder",
-            temperature=0
+            model=settings.retriever_ollama_model,
+            temperature=settings.retriever_ollama_temperature
         )
         
         # Define metadata field info
