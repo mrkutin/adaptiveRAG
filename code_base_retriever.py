@@ -30,7 +30,6 @@ class CodeBaseRetriever(BaseRetriever):
     language: str = Field(default="js")
     embedding_model: str = Field(default="unclemusclez/jina-embeddings-v2-base-code")
     k: int = Field(default=1)
-    persist_directory: str = Field(default="./chroma_db")
     
     # Use private attributes
     _loader: GenericLoader = PrivateAttr()
@@ -52,9 +51,8 @@ class CodeBaseRetriever(BaseRetriever):
         # Initialize embeddings
         self._embeddings = OllamaEmbeddings(model=self.embedding_model)
         
-        # Initialize vector store
+        # Initialize vector store (in-memory)
         self._vector_store = Chroma(
-            persist_directory=self.persist_directory,
             collection_name="codebase",
             embedding_function=self._embeddings
         )
@@ -127,6 +125,14 @@ class CodeBaseRetriever(BaseRetriever):
         Returns:
             List of found documents
         """
+        # Debug: Print the structured query
+        structured_query = self._retriever.query_constructor.invoke(query)
+        print("\nStructured Query:")
+        print("----------------")
+        print(f"Query: {query}")
+        print(f"Structured Query: {structured_query}")
+        print("----------------\n")
+        
         return self._retriever.invoke(query)
 
     async def _aget_relevant_documents(
@@ -150,7 +156,7 @@ if __name__ == "__main__":
     
     test_queries = [
         "what is in one-c.service.js?",
-        # "what generatorLoop does?",
+        # "what generatorLoop does in generator.mixin.js?",
         # "how to handle errors?",
         # "what is the main function?",
     ]
