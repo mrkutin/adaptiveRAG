@@ -147,10 +147,11 @@ if __name__ == "__main__":
     retriever = CodeBaseRetriever()
     
     test_queries = [
-        "what is in one-c.service.js?",
+        # "what is in one-c.service.js?",
         # "what generatorLoop does in generator.mixin.js?",
         # "how to handle errors?",
         # "what is the main function?",
+        "where is this error handled? MoleculerServerError: AxiosError: Request failed with status code 400 at Service.handler (/app/services/crm.service.js:199:13)?",
     ]
 
     for query in test_queries:

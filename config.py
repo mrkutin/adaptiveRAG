@@ -10,10 +10,17 @@ class Settings(BaseSettings):
     
     # Answerer Ollama settings
     answerer_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "ANSWERER_OLLAMA_BASE_URL"})
-    answerer_ollama_model: str = Field(default="llama3.1", json_schema_extra={"env": "ANSWERER_OLLAMA_MODEL"})
+    answerer_ollama_model: str = Field(default="deepseek-r1:32b", json_schema_extra={"env": "ANSWERER_OLLAMA_MODEL"})
     answerer_ollama_temperature: float = Field(default=0.7, json_schema_extra={"env": "ANSWERER_OLLAMA_TEMPERATURE"})
     answerer_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "ANSWERER_OLLAMA_TIMEOUT"})
-    answerer_ollama_max_tokens: int = Field(default=32768, json_schema_extra={"env": "ANSWERER_OLLAMA_MAX_TOKENS"})
+    answerer_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "ANSWERER_OLLAMA_MAX_TOKENS"})
+
+    # Log Summarizer Ollama settings
+    log_summarizer_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_BASE_URL"})
+    log_summarizer_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_MODEL"})
+    log_summarizer_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_TEMPERATURE"})
+    log_summarizer_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_TIMEOUT"})
+    log_summarizer_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_MAX_TOKENS"})
 
     # Retriever Ollama settings
     retriever_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "RETRIEVER_OLLAMA_BASE_URL"})

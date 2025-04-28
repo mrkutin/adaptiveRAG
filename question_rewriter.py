@@ -36,7 +36,7 @@ class QuestionRewriter:
 
         structured_llm = self._llm.with_structured_output(RewriteQuestion)
         self.chain = self._prompt | structured_llm
-
+    
     def invoke(self, inputs: dict) -> str:
         """Rewrite the question."""
         try:

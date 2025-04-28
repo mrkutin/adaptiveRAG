@@ -10,6 +10,8 @@ from open_search_retriever import OpenSearchRetriever
 from opensearch_retrieval_grader import OpenSearchRetrievalGrader
 from question_rewriter import QuestionRewriter
 from answerer import Answerer
+from log_summarizer import LogSummarizer
+from code_base_retriever import CodeBaseRetriever
 # from hallucination_grader import HallucinationGrader
 # from answer_grader import AnswerGrader
 
@@ -25,6 +27,9 @@ class ChatState(MessagesState):
     # regenerate_answer_attempts: int  
     documents: Annotated[Sequence[Document], "documents"]
     generation: str
+    log_summary: str = ""  # Add log summary to state
+    stack_traces_text: str = ""
+    code_docs: Annotated[Sequence[Document], "code_docs"] = []
 
 class ChatChain:
     """Class to handle chat processing logic."""
@@ -34,6 +39,8 @@ class ChatChain:
         self.retrieval_grader = OpenSearchRetrievalGrader()
         self.question_rewriter = QuestionRewriter()
         self.answerer = Answerer()
+        self.log_summarizer = LogSummarizer()
+        self.code_base_retriever = CodeBaseRetriever()
         # self.hallucination_grader = HallucinationGrader()
         # self.answer_grader = AnswerGrader()
         
@@ -76,7 +83,7 @@ class ChatChain:
                 question=question,
                 document=f"{doc.page_content} \n\n {doc.metadata}"
             )
-            print(f"---DOC: {doc.page_content[:100]}... GRADE: {grade}---")
+            print(f"---DOC: {doc.metadata['time']} {doc.page_content[:100]}... GRADE: {grade}---")
             return (doc, grade == "yes")
         except Exception as e:
             print(f"Error grading document: {e}")
@@ -164,6 +171,31 @@ class ChatChain:
         )
         return {**state, "documents": documents, "question": better_question, "rewrite_question_attempts": state["rewrite_question_attempts"] - 1}
 
+    async def retrieve_code_docs(self, state: ChatState) -> ChatState:
+        """Retrieve relevant code documents for the stack traces."""
+        try:
+            msg = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="🔍 Searching codebase for relevant files..."
+            )
+
+            # Get stack traces from state
+            stack_traces = state["stack_traces_text"]
+            
+            # Retrieve relevant code documents
+            code_docs = await self.code_base_retriever.ainvoke(stack_traces)
+            
+            # Update status message
+            await self.bot.edit_message_text(
+                chat_id=state["telegram_chat_id"],
+                message_id=msg.message_id,
+                text=f"📚 Found {len(code_docs)} relevant code files"
+            )
+            
+            return {**state, "code_docs": code_docs}
+        except Exception as e:
+            logger.error(f"Error in retrieve_code_docs: {str(e)}")
+            raise
 
     async def generate_answer(self, state: ChatState) -> ChatState:
         """Process a message and update the state."""
@@ -173,10 +205,12 @@ class ChatChain:
                 text="🤖 Generating answer..."
             )
 
-            # Generate response
-            formatted_docs = "\n\n".join(doc.page_content for doc in state["documents"])
+            # Format code docs with file information
+            formatted_code_docs = "\n\n".join(f"File: {doc.metadata.get('filename', 'unknown')}\n{doc.page_content}" for doc in state["code_docs"])
+            
+            # Generate response using summarized logs and code context
             response = await self.answerer.ainvoke({
-                "context": formatted_docs, 
+                "context": f"Log Analysis:\n{state['log_summary']}\n\nCode Context:\n{formatted_code_docs}", 
                 "question": state["question"]
             })
 
@@ -192,80 +226,55 @@ class ChatChain:
             logger.error(f"Error in generate_answer: {str(e)}")
             raise
 
-    # async def grade_generation_v_documents_and_question(
-    #     self,
-    #     state: ChatState,
-    # ) -> ChatState:
-    #     """Grade the generation against documents and question."""
-    #     try:
-    #         status_message = await self.bot.send_message(
-    #             chat_id=state["telegram_chat_id"],
-    #             text="🤔 Checking answer quality..."
-    #         )
+    async def summarize_logs(self, state: ChatState) -> ChatState:
+        """Summarize the retrieved logs."""
+        try:
+            msg = await self.bot.send_message(
+                chat_id=state["telegram_chat_id"],
+                text="📊 Analyzing logs..."
+            )
 
-    #         answer_grade, hallucination_grade = await asyncio.gather(
-    #             self.answer_grader.ainvoke(
-    #                 question=state["question"],
-    #                 generation=state["generation"]
-    #             ),
-    #             self.hallucination_grader.ainvoke(
-    #                 generation=state["generation"],
-    #                 documents="\n\n".join(doc.page_content for doc in state["documents"])
-    #             )
-    #         )
+            # Extract log content from documents
+            logs = [doc.page_content for doc in state["documents"]]
+            i = 0
+            for log in logs:
+                print(f"---LOG {i}: {log[:100]}...---")
+                i += 1
+            # Get summary
+            summary = await self.log_summarizer.ainvoke(logs)
+            logger.info(f"---SUMMARY: {summary}---")
+            
 
-    #         regenerate_attempts = state["regenerate_answer_attempts"] # Default to 3 if not set
-    #         rewrite_attempts = state["rewrite_question_attempts"]
+            # Format summary for display
+            key_events_text = "\n".join(f"• {event}" for event in summary.key_events)
+            stack_traces_text = "\n".join(f"```\n{trace}\n```" for trace in summary.stack_traces) if summary.stack_traces else "No stack traces found"
+            
+            summary_text = f"""
+            📝 Log Analysis Summary:
+            {summary.summary}
 
-    #         if answer_grade == "no" and rewrite_attempts > 1:
-    #             await self.bot.edit_message_text(
-    #                 text=f"❌ Answer does not address the question (will try rewriting)\n"
-    #                 f"• Answer relevance: {answer_grade}\n"
-    #                 f"• Factual accuracy: {hallucination_grade}\n"
-    #                 f"• Remaining question rewrites: {rewrite_attempts - 1}",
-    #                 chat_id=state["telegram_chat_id"],
-    #                 message_id=status_message.message_id
-    #             )
-    #             return "inadequate generation"
-    #         elif hallucination_grade == "no" and regenerate_attempts > 1:
-    #             await self.bot.edit_message_text(
-    #                 text=f"⚠️ Answer contains unsupported information (will try regenerating)\n"
-    #                 f"• Answer relevance: {answer_grade}\n"
-    #                 f"• Factual accuracy: {hallucination_grade}\n"
-    #                 f"• Remaining generation attempts: {regenerate_attempts - 1}",
-    #                 chat_id=state["telegram_chat_id"],
-    #                 message_id=status_message.message_id
-    #             )
-    #             # Update state with decremented regeneration attempts
-    #             state["regenerate_answer_attempts"] = regenerate_attempts - 1
-    #             return "not supported generation"
-    #         elif answer_grade == "no" or hallucination_grade == "no":
-    #             await self.bot.edit_message_text(
-    #                 text=f"❌ Unable to generate satisfactory answer after multiple attempts\n"
-    #                 f"• Answer relevance: {answer_grade}\n"
-    #                 f"• Factual accuracy: {hallucination_grade}\n"
-    #                 f"• No attempts remaining",
-    #                 chat_id=state["telegram_chat_id"],
-    #                 message_id=status_message.message_id
-    #             )
-    #             return "unacceptable generation"
-    #         else:
-    #             await self.bot.edit_message_text(
-    #                 text=f"✅ Answer is relevant and factually accurate\n"
-    #                 f"• Answer relevance: {answer_grade}\n"
-    #                 f"• Factual accuracy: {hallucination_grade}",
-    #                 chat_id=state["telegram_chat_id"],
-    #                 message_id=status_message.message_id
-    #             )
-    #             return "adequate generation"
+            🔍 Key Events:
+            {key_events_text}
 
-    #     except Exception as e:
-    #         logger.error(f"Error in grade_generation_v_documents_and_question: {str(e)}")
-    #         await self.bot.send_message(
-    #             chat_id=state["telegram_chat_id"],
-    #             text=f"❌ Error while grading response: {str(e)}"
-    #         )
-    #         raise
+            ⚠️ Statistics:
+            • Errors: {summary.error_count}
+            • Warnings: {summary.warning_count}
+
+            🔧 Stack Traces:
+            {stack_traces_text}
+"""
+            
+            # Update status message
+            await self.bot.edit_message_text(
+                chat_id=state["telegram_chat_id"],
+                message_id=msg.message_id,
+                text=summary_text
+            )
+            
+            return {**state, "log_summary": summary_text, "stack_traces_text": stack_traces_text}
+        except Exception as e:
+            logger.error(f"Error in summarize_logs: {str(e)}")
+            raise
 
 
 class WorkflowGraph:
@@ -277,6 +286,8 @@ class WorkflowGraph:
         # Add nodes
         self.workflow.add_node("retrieve_opensearch_documents", self.chat_chain.retrieve_opensearch_documents)
         self.workflow.add_node("grade_opensearch_documents", self.chat_chain.grade_opensearch_documents)  
+        self.workflow.add_node("summarize_logs", self.chat_chain.summarize_logs)
+        self.workflow.add_node("retrieve_code_docs", self.chat_chain.retrieve_code_docs)
         self.workflow.add_node("rewrite_question", self.chat_chain.rewrite_question)
         self.workflow.add_node("generate_answer", self.chat_chain.generate_answer)
         
@@ -288,9 +299,11 @@ class WorkflowGraph:
             self.chat_chain.decide_to_generate,
             {
                 "rewrite_question": "rewrite_question",
-                "generate_answer": "generate_answer",
+                "generate_answer": "summarize_logs",
             },
         )
+        self.workflow.add_edge("summarize_logs", "retrieve_code_docs")
+        self.workflow.add_edge("retrieve_code_docs", "generate_answer")
         self.workflow.add_edge("rewrite_question", "retrieve_opensearch_documents")
         self.workflow.add_edge("generate_answer", END)
 
