@@ -29,9 +29,8 @@ class QuestionRewriter:
             base_url=settings.question_rewriter_ollama_base_url,
             model=settings.question_rewriter_ollama_model,
             temperature=settings.question_rewriter_ollama_temperature,
-            timeout=settings.question_rewriter_ollama_timeout,
-            streaming=True,
-            max_tokens=settings.question_rewriter_ollama_max_tokens
+            # streaming=True,
+            num_ctx=settings.question_rewriter_ollama_num_ctx
         )
 
         structured_llm = self._llm.with_structured_output(RewriteQuestion)

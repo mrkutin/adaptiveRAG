@@ -20,9 +20,7 @@ class OpenSearchQueryConstructor:
             base_url=settings.retriever_ollama_base_url,
             model=settings.retriever_ollama_model,
             temperature=settings.retriever_ollama_temperature,
-            timeout=settings.retriever_ollama_timeout,
-            # max_tokens=settings.retriever_ollama_max_tokens,
-            num_ctx=8192
+            num_ctx=settings.retriever_ollama_num_ctx
         )
         
         self.base_template = (

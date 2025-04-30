@@ -49,9 +49,7 @@ Focus on providing a clear and direct response to the user's question, supplemen
             base_url=settings.answerer_ollama_base_url,
             model=settings.answerer_ollama_model,
             temperature=settings.answerer_ollama_temperature,
-            timeout=settings.answerer_ollama_timeout,
-            max_tokens=settings.answerer_ollama_max_tokens,
-            num_ctx=65536
+            num_ctx=settings.answerer_ollama_num_ctx
         )
 
         self.chain = self._prompt | self._llm | StrOutputParser()

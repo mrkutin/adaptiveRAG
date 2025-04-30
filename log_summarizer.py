@@ -48,8 +48,7 @@ class LogSummarizer:
             base_url=settings.log_summarizer_ollama_base_url,
             model=settings.log_summarizer_ollama_model,
             temperature=settings.log_summarizer_ollama_temperature,
-            timeout=settings.log_summarizer_ollama_timeout,
-            max_tokens=settings.log_summarizer_ollama_max_tokens
+            num_ctx=settings.log_summarizer_ollama_num_ctx
         )
 
         # Create structured output chain

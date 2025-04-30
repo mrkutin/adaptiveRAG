@@ -30,9 +30,8 @@ class OpenSearchRetrievalGrader:
             base_url=settings.retrieval_grader_ollama_base_url,
             model=settings.retrieval_grader_ollama_model,
             temperature=settings.retrieval_grader_ollama_temperature,
-            timeout=settings.retrieval_grader_ollama_timeout,
             streaming=True,
-            max_tokens=settings.retrieval_grader_ollama_max_tokens
+            num_ctx=settings.retrieval_grader_ollama_num_ctx
         )
 
         structured_llm = self._llm.with_structured_output(GradeDocuments)

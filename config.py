@@ -13,51 +13,44 @@ class Settings(BaseSettings):
     #1. deepcoder
     #2. codellama
     answerer_ollama_model: str = Field(default="deepcoder", json_schema_extra={"env": "ANSWERER_OLLAMA_MODEL"})
-    answerer_ollama_temperature: float = Field(default=0.7, json_schema_extra={"env": "ANSWERER_OLLAMA_TEMPERATURE"})
-    answerer_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "ANSWERER_OLLAMA_TIMEOUT"})
-    answerer_ollama_max_tokens: int = Field(default=16384, json_schema_extra={"env": "ANSWERER_OLLAMA_MAX_TOKENS"})
+    answerer_ollama_temperature: float = Field(default=0.1, json_schema_extra={"env": "ANSWERER_OLLAMA_TEMPERATURE"})
+    answerer_ollama_num_ctx: int = Field(default=65536, json_schema_extra={"env": "ANSWERER_OLLAMA_NUM_CTX"})
 
     # Log Summarizer Ollama settings
     log_summarizer_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_BASE_URL"})
     log_summarizer_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_MODEL"})
     log_summarizer_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_TEMPERATURE"})
-    log_summarizer_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_TIMEOUT"})
-    log_summarizer_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_MAX_TOKENS"})
+    log_summarizer_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_NUM_CTX"})
 
     # Retriever Ollama settings
     retriever_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "RETRIEVER_OLLAMA_BASE_URL"})
     retriever_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "RETRIEVER_OLLAMA_MODEL"})
     retriever_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "RETRIEVER_OLLAMA_TEMPERATURE"})
-    retriever_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "RETRIEVER_OLLAMA_TIMEOUT"})
-    retriever_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "RETRIEVER_OLLAMA_MAX_TOKENS"})
+    retriever_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "RETRIEVER_OLLAMA_NUM_CTX"})
     
     # Retrieval Grader Ollama settings
     retrieval_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "RETRIEVER_OLLAMA_BASE_URL"})
     retrieval_grader_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "RETRIEVER_OLLAMA_MODEL"})
     retrieval_grader_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "RETRIEVAL_GRADER_OLLAMA_TEMPERATURE"})
-    retrieval_grader_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "RETRIEVAL_GRADER_OLLAMA_TIMEOUT"})
-    retrieval_grader_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "RETRIEVAL_GRADER_OLLAMA_MAX_TOKENS"})
+    retrieval_grader_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "RETRIEVAL_GRADER_OLLAMA_NUM_CTX"})
     
     # Question Rewriter Ollama settings
     question_rewriter_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "QUESTION_REWRITER_OLLAMA_BASE_URL"})
     question_rewriter_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "QUESTION_REWRITER_OLLAMA_MODEL"})
     question_rewriter_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "QUESTION_REWRITER_OLLAMA_TEMPERATURE"})
-    question_rewriter_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "QUESTION_REWRITER_OLLAMA_TIMEOUT"})
-    question_rewriter_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "QUESTION_REWRITER_OLLAMA_MAX_TOKENS"})
+    question_rewriter_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "QUESTION_REWRITER_OLLAMA_NUM_CTX"})
     
     # # Hallucination Grader Ollama settings
     # hallucination_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "HALLUCINATION_GRADER_OLLAMA_BASE_URL"})
     # hallucination_grader_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "HALLUCINATION_GRADER_OLLAMA_MODEL"})
     # hallucination_grader_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "HALLUCINATION_GRADER_OLLAMA_TEMPERATURE"})
-    # hallucination_grader_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "HALLUCINATION_GRADER_OLLAMA_TIMEOUT"})
-    # hallucination_grader_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "HALLUCINATION_GRADER_OLLAMA_MAX_TOKENS"})
+    # hallucination_grader_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "HALLUCINATION_GRADER_OLLAMA_NUM_CTX"})
     
     # # Answer Grader Ollama settings
     # answer_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "ANSWER_GRADER_OLLAMA_BASE_URL"})
     # answer_grader_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "ANSWER_GRADER_OLLAMA_MODEL"})
     # answer_grader_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "ANSWER_GRADER_OLLAMA_TEMPERATURE"})
-    # answer_grader_ollama_timeout: int = Field(default=30, json_schema_extra={"env": "ANSWER_GRADER_OLLAMA_TIMEOUT"})
-    # answer_grader_ollama_max_tokens: int = Field(default=8192, json_schema_extra={"env": "ANSWER_GRADER_OLLAMA_MAX_TOKENS"})
+    # answer_grader_ollama_num_ctx: int = Field(default=65536, json_schema_extra={"env": "ANSWER_GRADER_OLLAMA_NUM_CTX"})
 
     # OpenSearch settings
     opensearch_host: str = Field(json_schema_extra={"env": "OPENSEARCH_HOST"})
