@@ -205,12 +205,12 @@ class ChatChain:
                 text="🤖 Generating answer..."
             )
 
-            # Format code docs with file information
-            formatted_code_docs = "\n\n".join(f"File: {doc.metadata.get('filename', 'unknown')}\n{doc.page_content}" for doc in state["code_docs"])
+            # Format documents for context
+            formatted_docs = "\n\n".join(f"Log Entry:\n{doc.page_content}" for doc in state["documents"])
             
-            # Generate response using summarized logs and code context
+            # Generate response using the documents directly
             response = await self.answerer.ainvoke({
-                "context": f"Log Analysis:\n{state['log_summary']}\n\nCode Context:\n{formatted_code_docs}", 
+                "context": formatted_docs,
                 "question": state["question"]
             })
 
@@ -226,55 +226,55 @@ class ChatChain:
             logger.error(f"Error in generate_answer: {str(e)}")
             raise
 
-    async def summarize_logs(self, state: ChatState) -> ChatState:
-        """Summarize the retrieved logs."""
-        try:
-            msg = await self.bot.send_message(
-                chat_id=state["telegram_chat_id"],
-                text="📊 Analyzing logs..."
-            )
+    # async def summarize_logs(self, state: ChatState) -> ChatState:
+    #     """Summarize the retrieved logs."""
+    #     try:
+    #         msg = await self.bot.send_message(
+    #             chat_id=state["telegram_chat_id"],
+    #             text="📊 Analyzing logs..."
+    #         )
 
-            # Extract log content from documents
-            logs = [doc.page_content for doc in state["documents"]]
-            i = 0
-            for log in logs:
-                print(f"---LOG {i}: {log[:100]}...---")
-                i += 1
-            # Get summary
-            summary = await self.log_summarizer.ainvoke(logs)
-            logger.info(f"---SUMMARY: {summary}---")
+    #         # Extract log content from documents
+    #         logs = [doc.page_content for doc in state["documents"]]
+    #         i = 0
+    #         for log in logs:
+    #             print(f"---LOG {i}: {log[:100]}...---")
+    #             i += 1
+    #         # Get summary
+    #         summary = await self.log_summarizer.ainvoke(logs)
+    #         logger.info(f"---SUMMARY: {summary}---")
             
 
-            # Format summary for display
-            key_events_text = "\n".join(f"• {event}" for event in summary.key_events)
-            stack_traces_text = "\n".join(f"```\n{trace}\n```" for trace in summary.stack_traces) if summary.stack_traces else "No stack traces found"
+    #         # Format summary for display
+    #         key_events_text = "\n".join(f"• {event}" for event in summary.key_events)
+    #         stack_traces_text = "\n".join(f"```\n{trace}\n```" for trace in summary.stack_traces) if summary.stack_traces else "No stack traces found"
             
-            summary_text = f"""
-            📝 Log Analysis Summary:
-            {summary.summary}
+    #         summary_text = f"""
+    #         📝 Log Analysis Summary:
+    #         {summary.summary}
 
-            🔍 Key Events:
-            {key_events_text}
+    #         🔍 Key Events:
+    #         {key_events_text}
 
-            ⚠️ Statistics:
-            • Errors: {summary.error_count}
-            • Warnings: {summary.warning_count}
+    #         ⚠️ Statistics:
+    #         • Errors: {summary.error_count}
+    #         • Warnings: {summary.warning_count}
 
-            🔧 Stack Traces:
-            {stack_traces_text}
-"""
+    #         🔧 Stack Traces:
+    #         {stack_traces_text}
+    # """
             
-            # Update status message
-            await self.bot.edit_message_text(
-                chat_id=state["telegram_chat_id"],
-                message_id=msg.message_id,
-                text=summary_text
-            )
+    #         # Update status message
+    #         await self.bot.edit_message_text(
+    #             chat_id=state["telegram_chat_id"],
+    #             message_id=msg.message_id,
+    #             text=summary_text
+    #         )
             
-            return {**state, "log_summary": summary_text, "stack_traces_text": stack_traces_text}
-        except Exception as e:
-            logger.error(f"Error in summarize_logs: {str(e)}")
-            raise
+    #         return {**state, "log_summary": summary_text, "stack_traces_text": stack_traces_text}
+    #     except Exception as e:
+    #         logger.error(f"Error in summarize_logs: {str(e)}")
+    #         raise
 
 
 class WorkflowGraph:
@@ -286,8 +286,8 @@ class WorkflowGraph:
         # Add nodes
         self.workflow.add_node("retrieve_opensearch_documents", self.chat_chain.retrieve_opensearch_documents)
         self.workflow.add_node("grade_opensearch_documents", self.chat_chain.grade_opensearch_documents)  
-        self.workflow.add_node("summarize_logs", self.chat_chain.summarize_logs)
-        self.workflow.add_node("retrieve_code_docs", self.chat_chain.retrieve_code_docs)
+        # self.workflow.add_node("summarize_logs", self.chat_chain.summarize_logs)
+        # self.workflow.add_node("retrieve_code_docs", self.chat_chain.retrieve_code_docs)
         self.workflow.add_node("rewrite_question", self.chat_chain.rewrite_question)
         self.workflow.add_node("generate_answer", self.chat_chain.generate_answer)
         
@@ -299,24 +299,13 @@ class WorkflowGraph:
             self.chat_chain.decide_to_generate,
             {
                 "rewrite_question": "rewrite_question",
-                "generate_answer": "summarize_logs",
+                "generate_answer": "generate_answer",  # Changed from "summarize_logs" to "generate_answer"
             },
         )
-        self.workflow.add_edge("summarize_logs", "retrieve_code_docs")
-        self.workflow.add_edge("retrieve_code_docs", "generate_answer")
+        # self.workflow.add_edge("summarize_logs", "retrieve_code_docs")
+        # self.workflow.add_edge("retrieve_code_docs", "generate_answer")
         self.workflow.add_edge("rewrite_question", "retrieve_opensearch_documents")
         self.workflow.add_edge("generate_answer", END)
-
-        # self.workflow.add_conditional_edges(
-        #     "generate_answer",
-        #     self.chat_chain.grade_generation_v_documents_and_question,
-        #     {
-        #         "not supported generation": "generate_answer",
-        #         "inadequate generation": "rewrite_question",
-        #         "adequate generation": END,
-        #         "unacceptable generation": END,
-        #     },
-        # )
 
         # Compile the graph
         self.app = self.workflow.compile()

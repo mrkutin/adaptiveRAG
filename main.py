@@ -48,7 +48,6 @@ class TelegramBot:
             
             # Process through workflow
             result_state = await self.workflow.process(initial_state)
-            print(f"---FINAL RESULT: {result_state['generation']}---")
             
             # Send the response back to the user
             if result_state.get('generation'):
