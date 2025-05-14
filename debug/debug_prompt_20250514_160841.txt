@@ -1,0 +1,1184 @@
+
+Based on the user's query and the logs provided, determine the appropriate response.
+
+USER QUESTION: what are crm errors today?
+
+LOGS CONTEXT:
+Log Entry:
+Action crm.crmProcess error with payload: {"tableName":"crm-agreements","sendUrl":"https://crm.prosv.ru/rest/CrocEntityService/SendContracts","records":[{"_id":"6819ec155731bc56671a43c7","recid":"5639346064","agreementid_pik":"","agreementiid_kz":"A0226522","attempts":1,"cfo":"020002","channel_code":"000000001","classification_name":"Бюджетные заказы","client_type_code":0,"code":"PSVK645730","company_source":"psv","created_at":"2025-05-06T11:01:41.457Z","created_date":"2025-05-06T10:55:57.000Z","crm_status":"pending","currency":"RUB","cust_account_code":"К0007549","default_effective_date":"2025-04-30T00:00:00.000Z","delivery_date":"2025-09-30T00:00:00.000Z","diadoc_signing_status_code":0,"documentExternalReference":"Контракт № A0226522","document_date":"2025-05-06T00:00:00.000Z","document_title":"A0226522","edo_type_code":5,"end_date":"2025-12-31T00:00:00.000Z","gak":"23688","header_rec_id":"5642687870","is_correct_efu":false,"management_accouting_article":1101010100018,"number_copies_pcs":null,"owner_executor":"axuserbatch","payment_schedule":"_10_поставка","sales_district_code":"77","signing_date":"2025-05-13T00:00:00.000Z","signing_status_code":3,"source_code":1,"status_code":1,"updated_at":"2025-05-14T09:53:41.806Z","vat_amount":null,"sent_to_crm":"2025-05-12T12:12:17.405Z"}]}, error: MoleculerServerError: MoleculerServerError: crmRes.data.success: false, stack: MoleculerServerError: MoleculerServerError: crmRes.data.success: false
+    at Service.handler (/app/services/crm.service.js:199:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /app/middlewares/metricsMiddleware.js:16:17
+    at async /app/services/crm.service.js:119:6
+    at async Promise.all (index 0)
+    at async Service.crmLoop (/app/services/crm.service.js:117:4)
+    at async Service.crmStartLoop (/app/services/crm.service.js:40:5)
+
+STACK TRACE:
+stack: MoleculerServerError: MoleculerServerError: crmRes.data.success: false
+    at Service.handler (/app/services/crm.service.js:199:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /app/middlewares/metricsMiddleware.js:16:17
+    at async /app/services/crm.service.js:119:6
+    at async Promise.all (index 0)
+    at async Service.crmLoop (/app/services/crm.service.js:117:4)
+    at async Service.crmStartLoop (/app/services/crm.service.js:40:5)
+
+CODE CONTEXT:
+Code Snippet:
+'use strict'
+
+const axios = require('axios')
+
+const ApiGateway = require('moleculer-web')
+const E = require('moleculer-web').Errors
+const { MoleculerServerError } = require('moleculer').Errors
+const {ObjectId} = require('mongodb')
+const { v4: uuidv4 } = require('uuid')
+
+const {
+	API_KEY, PWD_API_HOST, PWD_API_ENDPOINT,
+	CONSUMERS_FOLDER_ID,
+	PRODUCERS_FOLDER_ID
+} = process.env
+
+const StateMixin = require('../mixins/state.mixin')
+const apiAllowedTables = require('../configs/api.allowed.tables.config')
+
+const axStringFields = ['inn', 'kpp']
+
+/**
+ * @typedef {import('moleculer').ServiceSchema} ServiceSchema Moleculer's Service Schema
+ * @typedef {import('moleculer').Context} Context Moleculer's Context
+ * @typedef {import('http').IncomingMessage} IncomingRequest Incoming HTTP Request
+ * @typedef {import('http').ServerResponse} ServerResponse HTTP Server Response
+ * @typedef {import('moleculer-web').ApiSettingsSchema} ApiSettingsSchema API Setting Schema
+ */
+
+module.exports = {
+	name: 'api',
+	mixins: [ApiGateway, StateMixin],
+
+	/** @type {ApiSettingsSchema} More info about settings: https://moleculer.services/docs/0.14/moleculer-web.html*/
+	settings: {
+		CONSUMERS_TOKENS: {},
+		PRODUCERS_TOKENS: {},
+
+		// Exposed port
+		port: process.env.PORT || 3000,
+
+		// Exposed IP
+		ip: '0.0.0.0',
+
+		// Global Express middlewares. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Middlewares
+		use: [],
+
+		//api version
+		rest: '/',
+
+		routes: [
+			{
+				path: '/',
+
+				whitelist: [
+					'api.ping',
+					'openapi.generateDocs',
+					'openapi.ui',
+					'openapi.assets'
+				],
+
+				// Route-level Express middlewares. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Middlewares
+				use: [],
+
+				// Enable/disable parameter merging method. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Disable-merging
+				mergeParams: true,
+
+				// Enable authentication. Implement the logic into `authenticate` method. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Authentication
+				authentication: false,
+
+				// Enable authorization. Implement the logic into `authorize` method. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Authorization
+				authorization: false,
+
+				// The auto-alias feature allows you to declare your route alias directly in your services.
+				// The gateway will dynamically build the full routes from service schema.
+				aliases: {
+					'GET /ping': 'api.ping',
+					'GET /openapi.json': 'openapi.generateDocs',
+					'GET /swagger': 'openapi.ui',
+					'GET /assets/:file': 'openapi.assets',
+				},
+
+				/**
+				 * Before call hook. You can check the request.
+				 * @param {Context} ctx
+				 * @param {Object} route
+				 * @param {IncomingRequest} req
+				 * @param {ServerResponse} res
+				 * @param {Object} data
+				 *
+				onBeforeCall(ctx, route, req, res) {
+					// Set request headers to context meta
+					ctx.meta.userAgent = req.headers["user-agent"];
+				}, */
+
+				/**
+				 * After call hook. You can modify the data.
+				 * @param {Context} ctx
+				 * @param {Object} route
+				 * @param {IncomingRequest} req
+				 * @param {ServerResponse} res
+				 * @param {Object} data
+				onAfterCall(ctx, route, req, res, data) {
+					// Async function which return with Promise
+					return doSomething(ctx, res, data);
+				}, */
+
+				// Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
+				callingOptions: {},
+
+				bodyParsers: {
+					json: {
+						strict: false,
+						limit: '1MB'
+					},
+					urlencoded: {
+						extended: true,
+						limit: '1MB'
+					}
+				},
+
+				// Mapping policy setting. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Mapping-policy
+				mappingPolicy: 'all', // Available values: "all", "restrict"
+
+				// Enable/disable logging
+				logging: true
+			},
+			{
+				path: '/v5',
+
+				whitelist: [
+					'api.apply',
+					'api.applyJSONtoKafka',
+					'api.applyBASE64',
+					'api.get',
+					'contacts.crm.*',
+					'jobs.crm.*',
+					'student.stats.*',
+				],
+
+				// Route-level Express middlewares. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Middlewares
+				use: [],
+
+				// Enable/disable parameter merging method. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Disable-merging
+				mergeParams: false,
+
+				// Enable authentication. Implement the logic into `authenticate` method. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Authentication
+				authentication: false,
+
+				// Enable authorization. Implement the logic into `authorize` method. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Authorization
+				authorization: true,
+
+				// The auto-alias feature allows you to declare your route alias directly in your services.
+				// The gateway will dynamically build the full routes from service schema.
+				aliases: {
+					'GET /m3activity-student-task-stats': 'student.stats.taskStats',
+					'GET /m3activity-student-completed-task-day-stats': 'student.stats.completedTaskDayStats',
+					'GET /m3activity-student-average-exercise-score-stats': 'student.stats.averageExerciseScoreStats',
+					'GET /m3activity-student-rating-stats': 'student.stats.ratingStats',
+					'GET /:table_name': 'api.get',
+					'POST /apply': 'api.apply',
+					'POST /applyBASE64': 'api.apply',
+					'POST /:table_name': 'api.applyJSONtoKafka',
+					'POST /queues/contacts' : 'contacts.crm.contacts',
+					'POST /queues/jobs' : 'jobs.crm.jobs',
+				},
+
+				/**
+				 * Before call hook. You can check the request.
+				 * @param {Context} ctx
+				 * @param {Object} route
+				 * @param {IncomingRequest} req
+				 * @param {ServerResponse} res
+				 * @param {Object} data
+				 *
+				onBeforeCall(ctx, route, req, res) {
+					// Set request headers to context meta
+					ctx.meta.userAgent = req.headers["user-agent"];
+				}, */
+
+				/**
+				 * After call hook. You can modify the data.
+				 * @param {Context} ctx
+				 * @param {Object} route
+				 * @param {IncomingRequest} req
+				 * @param {ServerResponse} res
+				 * @param {Object} data
+				onAfterCall(ctx, route, req, res, data) {
+					// Async function which return with Promise
+					return doSomething(ctx, res, data);
+				}, */
+
+				// Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
+				callingOptions: {},
+
+				bodyParsers: {
+					json: {
+						strict: false,
+						limit: '100MB'
+					},
+					urlencoded: {
+						extended: true,
+						limit: '1MB'
+					}
+				},
+
+				// Mapping policy setting. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Mapping-policy
+				mappingPolicy: 'all', // Available values: "all", "restrict"
+
+				// Enable/disable logging
+				logging: true
+			}
+		],
+
+		// Do not log client side errors (does not log an error response when the error.code is 400<=X<500)
+		log4XXResponses: false,
+		// Logging the request parameters. Set to any log level to enable it. E.g. "info"
+		logRequestParams: null,
+		// Logging the response data. Set to any log level to enable it. E.g. "info"
+		logResponseData: null,
+
+
+		// Serve assets from "public" folder. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Serve-static-files
+		assets: {
+			folder: 'public',
+
+			// Options to `server-static` module
+			options: {}
+		}
+	},
+
+	actions: {
+		ping: {
+			rest: 'GET /ping',
+			async handler() {
+				return 'OK'
+			}
+		},
+		stateProcess: {
+			params: {
+				table_name: 'string',
+				records: {type: 'array', items: 'object'},
+				action: 'string'
+			},
+			async handler(ctx) {
+				this.logger.info(`Action ${ctx.action.name} input: ${JSON.stringify(ctx.params)}`)
+				const {table_name, records, action} = ctx.params
+				if (apiAllowedTables.includes(table_name)) {
+					if (table_name === 'one-c-products-price-table') {
+						await this.applyProductsPriceMessages(table_name, records, action)
+					} else {
+						await this.applyMessages(table_name, records, action)
+					}
+				}
+				for (const record of records) {
+					await this.broker.sendToChannel(`${table_name}-topic`, record, {key: `${record.recid}`})
+				}
+			}
+		},
+		applyJSONtoKafka: {
+			rest: 'POST /:table_name',
+			openapi: {
+				security: [{bearerAuth: []}]
+			},
+			params: {
+				body: [
+					{ type: 'array', items: 'object' },
+					{ type: 'object' }
+				],
+				params: {
+					$$type: 'object',
+					table_name: 'string'
+				}
+			},
+			async handler(ctx) {
+				this.logger.info(`Action ${ctx.action.name} input: ${JSON.stringify(ctx.params)}`)
+				const {params, body} = ctx.params
+				const {table_name} = params
+
+				let bodyData
+				try {
+					bodyData = JSON.parse(Buffer.from(body.messages, 'base64').toString())
+				} catch (e) {
+					this.logger.info(`Unable to parse ${JSON.stringify(ctx.params)} to BASE64, using JSON`)
+					bodyData = body
+				}
+
+				const records = [bodyData].flat()
+
+				for (const record of records) {
+					if (record.recid && record.recid !== '') {
+						this.logger.info(`Action ${ctx.action.name} push record to kafka and mongodb: ${JSON.stringify(record)}`)
+						await this.broker.sendToChannel('channel.message.api.received', {table_name, record, action: 'insert'}, {key: `${record.recid}`})
+					} else {
+						this.logger.info(`Action ${ctx.action.name} push record only to kafka: ${JSON.stringify(record)}`)
+						await this.broker.sendToChannel(`${table_name}-topic`, record, {key: uuidv4()})
+					}
+				}
+
+				return { "status": "OK"}
+			}
+		},
+		apply: {
+			rest: 'POST /apply',
+			params: {
+				body: {
+					$$type: 'object',
+					messages: 'string'
+				}
+			},
+			async handler(ctx) {
+				this.logger.info(`Action ${ctx.action.name} input: ${JSON.stringify(ctx.params)}`)
+				const broker = this.broker
+				const parsed_messages =  JSON.parse(Buffer.from(ctx.params.body.messages, 'base64').toString())
+				this.logger.info(`Action ${ctx.action.name} parsed messages: ${JSON.stringify(parsed_messages)}`)
+
+				const flatMessages = parsed_messages.reduce((acc, message) => {
+					return acc.concat(message)
+				}, [])
+
+				const dedupByActionRecords = flatMessages.reduce((acc, message) => {
+					const table_name = message.table.toLowerCase()
+					const push_to_kafka = message.ax_consumer_id || message.push_to_kafka || 0
+
+					const lower_case_record = {}
+					for (const key in message.record) {
+						const lower_case_key = key.toLowerCase()
+						if (!['eventcreateddatetime', 'eventtypestr'].includes(lower_case_key)) {
+							if (axStringFields.includes(lower_case_key)) {
+								lower_case_record[lower_case_key] = message.record[key]
+							} else if (message.record[key] === parseInt(message.record[key]).toString()) {
+								lower_case_record[lower_case_key] = parseInt(message.record[key])
+								lower_case_record[`${lower_case_key}_original`] = message.record[key]
+							} else if (message.record[key] === parseFloat(message.record[key]).toString()) {
+								lower_case_record[lower_case_key] = parseFloat(message.record[key])
+							} else {
+								lower_case_record[lower_case_key] = message.record[key]
+							}
+						}
+					}
+
+					if (message.action === 'delete') {
+						if (!acc['delete'][table_name]) {
+							acc['delete'][table_name] = {}
+						}
+						if (!acc['delete'][table_name][push_to_kafka]) {
+							acc['delete'][table_name][push_to_kafka] = {}
+						}
+						acc['delete'][table_name][push_to_kafka][lower_case_record.recid] = lower_case_record
+					} else {
+						if (!acc['upsert'][table_name]) {
+							acc['upsert'][table_name] = {}
+						}
+						if (!acc['upsert'][table_name][push_to_kafka]) {
+							acc['upsert'][table_name][push_to_kafka] = {}
+						}
+						acc['upsert'][table_name][push_to_kafka][lower_case_record.recid] = lower_case_record
+					}
+					return acc
+				}, {'delete': {}, 'upsert': {}})
+
+				for (const action in dedupByActionRecords) {
+					for (const table_name in dedupByActionRecords[action]) {
+						for (const push_to_kafka in dedupByActionRecords[action][table_name]) {
+							const records = Object.values(dedupByActionRecords[action][table_name][push_to_kafka])
+							for (const record of records) {
+								await broker.sendToChannel('channel.message.api.received', {table_name, record, action}, {key: `${record.recid}`})
+								this.logger.info(`Message ${JSON.stringify(record)} for table ${table_name} sent to channel 'channel.message.api.received' with action ${action}`)
+							}
+						}
+					}
+				}
+			}
+		},
+		get: {
+			rest: 'GET /:table_name',
+			openapi: {
+				security: [{bearerAuth: []}]
+			},
+			params: {
+				params: {
+					$$type: 'object',
+					table_name: {type: 'string'},
+				},
+				query: {
+					$$type: 'object',
+					page: {type: 'string', optional: true},
+					perPage: {type: 'string', optional: true},
+					fields: {type: 'string', optional: true},
+					recid: {type: 'string', optional: true}
+				}
+			},
+			async handler(ctx) {
+				this.logger.info(`Action ${ctx.action.name} input: ${JSON.stringify(ctx.params)}`)
+				const {query, params} = ctx.params
+				const {table_name} = params
+				const {page, perPage, fields, ...rest} = query
+
+				const filter = rest ?
+					Object.keys(rest).reduce((acc, key) => {
+						if (!acc[key]) {
+							acc[key] = {}
+						}
+						acc[key] = {
+							'$in': key === '_id' ?
+								rest[key].split(',').map(value => new ObjectId(value))
+								:
+								rest[key].split(',').reduce((acc, value) => {
+									`${parseInt(value)}` === value ? acc.push(parseInt(value), value) : acc.push(value)
+									return acc
+								}, [])
+						}
+						return acc
+					}, {})
+					:
+					{}
+
+				this.logger.info('Aggregation filter: ', JSON.stringify(filter))
+
+				const limit = parseInt(perPage) || 10
+
+				const projectPipeline = fields ?
+					[
+						{
+							$project: fields ?
+								fields.split(',').reduce((acc, field) => {
+									if (!acc[field]) {
+										acc[field] = {}
+									}
+									acc[field] = 1
+									return acc
+								}, {})
+								:
+								{}
+						},
+						{
+							$skip: (page || 0) * limit
+						},
+						{
+							$limit: limit
+						}
+					]
+					:
+					[
+						{
+							$skip: (page || 0) * limit
+						},
+						{
+							$limit: limit
+						}
+					]
+
+				const itemsCountPromise = await this.getRecords(
+					table_name.toLowerCase(),
+					[
+						{
+							$match: {
+								to_be_deleted: {
+									$ne: true
+								},
+								...filter
+							}
+						},
+						{
+							$count:
+								'count'
+						}
+					]
+				)
+
+				const itemsDataPromise = await this.getRecords(
+					table_name.toLowerCase(),
+					[
+						{
+							$match: {
+								to_be_deleted: {
+									$ne: true
+								},
+								...filter
+							}
+						},
+						...projectPipeline
+					]
+				)
+
+
+				const [itemsCount, itemsData] = await Promise.all([itemsCountPromise, itemsDataPromise])
+
+				const result = {
+					'total': itemsCount.length ? itemsCount[0].count : 0,
+					'pages': itemsCount.length ? Math.ceil(itemsCount[0].count / limit) : 0,
+					'data': itemsData
+				}
+
+				this.logger.info(`Action ${ctx.action.name} output: ${JSON.stringify(result)}`)
+				return result
+			}
+		},
+		upload: {
+			openapi: {
+				security: [{bearerAuth: []}],
+				responses: {
+					200: {
+						'description': '',
+						'content': {
+							'application/json': {
+								'schema': {
+									'type': 'array',
+									'items': {
+										'type': 'object',
+										'example': { id: 1, filename: 'foo.txt', mimetype: 'text/plain', sizeInBytes: 100 },
+									},
+								},
+							},
+						},
+					},
+					400: {
+						$ref: '#/components/responses/FileNotExist',
+					},
+					401: {
+						$ref: '#/components/responses/UnauthorizedError',
+					},
+					413: {
+						$ref: '#/components/responses/FileTooBig',
+					},
+					422: {
+						$ref: '#/components/responses/ValidationError',
+					},
+					default: {
+						$ref: '#/components/responses/ServerError',
+					},
+				},
+			},
+			handler() {},
+		},
+		update: {
+			openapi: {
+				summary: 'Foo bar baz',
+			},
+			handler() {},
+		}
+	},
+
+	methods: {
+		async applyProductsPriceMessages(table_name, records, action) {
+			for (const record of records) {
+				const similarRecord = (await this.getRecords(
+					table_name,
+					[
+						{
+							$match: {
+								recid: record.recid
+							}
+						},
+						{
+							$project: {
+								price: 1,
+								itemid: 1,
+								vattype: 1,
+								wholesaleprice: 1,
+								price_markup_b2b: 1,
+								price_markup_b2c: 1,
+								_id: 0
+							}
+						}
+					]
+				))[0]
+
+				this.logger.info('similarRecord: ', JSON.stringify(similarRecord))
+
+				if (
+					!similarRecord
+					|| record.price !== similarRecord.price
+					|| record.itemid !== similarRecord.itemid
+					|| record.vattype !== similarRecord.vattype
+					|| record.wholesaleprice !== similarRecord.wholesaleprice
+					|| record.price_markup_b2b !== similarRecord.price_markup_b2b
+					|| record.price_markup_b2c !== similarRecord.price_markup_b2c
+				) {
+					const {recid, number, timestamp, event, ...data} = record
+					const camelCaseData = {
+						ItemId: data.itemid,
+						ContentId: data.contentid,
+						ProductId: data.productid,
+						VatType: data.vattype,
+						Price: data.price,
+						WholesalePrice: data.wholesaleprice || similarRecord?.wholesaleprice || null,
+						PriceMarkupB2b: data.price_markup_b2b,
+						PriceMarkupB2c: data.price_markup_b2c
+					}
+
+					await this.broker.sendToChannel('one-c-products-price-topic', {
+						recid,
+						number,
+						timestamp,
+						event,
+						data: camelCaseData
+					}, {key: `${recid}`})
+				}
+
+				await this.settings.db.collection(table_name).updateOne(
+					{recid: record.recid},
+					{
+						$set: action === 'delete' ?
+							{to_be_deleted: true}
+							:
+							{...record, updated_at: new Date()},
+						$setOnInsert: {created_at: new Date()}
+					},
+					{
+						upsert: true
+					}
+				)
+			}
+			await this.settings.db.collection(table_name).createIndex({ 'recid': 1 }, { unique: true })
+		},
+		async createIndexes(){
+			await this.settings.db.collection('one-c-customers-order').createIndex({ 'контрагент.idax': 1 }, { unique: false })
+			await this.settings.db.collection('one-c-customers-order').createIndex({ 'грузополучатель.idax': 1 }, { unique: false })
+			await this.settings.db.collection('one-c-act-provision-production-services').createIndex({ 'контрагент.idax': 1 }, { unique: false })
+			await this.settings.db.collection('one-c-act-provision-production-services').createIndex({ 'грузополучатель.idax': 1 }, { unique: false })
+		},
+		/**
+		 * Authorize the request. Check that the authenticated user has right to access the resource.
+		 *
+		 * PLEASE NOTE, IT'S JUST AN EXAMPLE IMPLEMENTATION. DO NOT USE IN PRODUCTION!
+		 *
+		 * @param {Context} ctx
+		 * @param {Object} route
+		 * @param {IncomingRequest} req
+		 * @returns {Promise}
+		 */
+		async authorize(ctx, route, req, res) {
+			const auth = req.headers['authorization']
+			if (auth && auth.startsWith('Bearer')) {
+				const token = auth.slice(7)
+				const { method} = req
+				const remoteAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+				this.logger.info(`Request from ${remoteAddress}. Token: ${token}`)
+
+				//check token
+				if ((method === 'GET' && this.settings.CONSUMERS_TOKENS[token]) || (method === 'POST' && this.settings.PRODUCERS_TOKENS[token])) {
+					return Promise.resolve(ctx)
+				} else {
+					return Promise.reject(new E.UnAuthorizedError(E.ERR_INVALID_TOKEN))
+				}
+			} else {
+				// No token
+				return Promise.reject(new E.UnAuthorizedError(E.ERR_NO_TOKEN))
+			}
+		},
+
+		async pwdLogin() {
+			try {
+				const response = await axios.post(`${PWD_API_HOST}${PWD_API_ENDPOINT}/auth/login/${API_KEY}`, {}, {
+					headers: {
+						'Accept': 'application/json'
+					}
+				})
+				this.logger.info('Pwd login successful')
+				const token = response.data.data.token
+				return token
+			} catch (e) {
+				throw new MoleculerServerError(`Pwd login failed with status ${e.response.status}, error message: ${e.response.data.data.errorMessage}`)
+			}
+		},
+		async pwdLogout(token) {
+			try {
+				await axios.post(`${PWD_API_HOST}${PWD_API_ENDPOINT}/auth/logout`, {}, {
+					headers: {
+						'Accept': 'application/json',
+						'Passwork-Auth': token
+					}
+				})
+				this.logger.info('Pwd logout successful')
+			} catch (e) {
+				throw new MoleculerServerError(`Pwd logout failed with status ${e.response.status}, error message: ${e.response.data.data.errorMessage}`)
+			}
+		},
+		async pwdGetPasswordsKeys(token, folderId) {
+			try {
+				const passwordsIds = []
+				const response = await axios.get(`${PWD_API_HOST}${PWD_API_ENDPOINT}/folders/${folderId}/passwords`, {
+					headers: {
+						'Accept': 'application/json',
+						'Passwork-Auth': `${token}`
+					},
+					body: {}
+				})
+				if (response.status !== 200) {
+					throw new Error('getPassword request failed!')
+				}
+
+				const responseData = response.data.data
+				for (const passwordData of responseData) {
+					passwordsIds.push(passwordData.id)
+				}
+				return passwordsIds
+			} catch (e) {
+				throw new MoleculerServerError(`Pwd get passwords keys failed with status ${e.response.status}, error message: ${e.response.data.data.errorMessage}`)
+			}
+		},
+		async pwdGetPasswordValues(token, passwordId) {
+			try {
+				const response = await axios.get(`${PWD_API_HOST}${PWD_API_ENDPOINT}/passwords/${passwordId}`, {
+					headers: {
+						'Accept': 'application/json',
+						'Passwork-Auth': `${token}`
+					}
+				})
+				if (response.status !== 200) {
+					throw new Error('getPasswordById request failed!')
+				}
+
+				const responseData = response.data.data
+
+				const passwordData = {
+					login: responseData.login,
+					password: Buffer.from(responseData.cryptedPassword, 'base64').toString()
+				}
+
+				return passwordData
+			} catch (e) {
+				throw new MoleculerServerError(`Pwd get password values failed with status ${e.response.status}, error message: ${e.response.data.data.errorMessage}`)
+			}
+		},
+		async pwdAuthorize() {
+			const token = await this.pwdLogin()
+			const consumersPasswordsKeys = await this.pwdGetPasswordsKeys(token, CONSUMERS_FOLDER_ID)
+			const consumersPasswordsValues = await Promise.all(consumersPasswordsKeys.map(async passwordId => this.pwdGetPasswordValues(token, passwordId)))
+
+			const producersPasswordsKeys = await this.pwdGetPasswordsKeys(token, PRODUCERS_FOLDER_ID)
+			const producersPasswordsValues = await Promise.all(producersPasswordsKeys.map(async passwordId => this.pwdGetPasswordValues(token, passwordId)))
+
+			consumersPasswordsValues.forEach(passwordData => this.settings.CONSUMERS_TOKENS[passwordData.password] = passwordData.login)
+			producersPasswordsValues.forEach(passwordData => this.settings.PRODUCERS_TOKENS[passwordData.password] = passwordData.login)
+			await this.pwdLogout(token)
+		}
+	},
+
+	channels: {
+		'channel.message.api.received': {
+			group: this.name,
+			handler(ctx) {
+				this.logger.info(`Channel ${ctx.channelName}: ${JSON.stringify(ctx.params)}`)
+				this.broker.call(`${this.name}.putKeyValue`, {
+					bucket: `${this.name}:${ctx.params.table_name}:${ctx.params.action}`,
+					key: ctx.params.record.recid,
+					value: ctx.params.record
+				})
+			}
+		}
+	},
+
+	started() {
+		this.pwdAuthorize()
+	}
+}
+
+
+Code Snippet:
+require('@moleculer/lab')
+
+const ChannelsMiddleware = require('./middlewares/channelsMiddleware')
+const ChannelNameMiddleware = require('./middlewares/channelNameMiddleware')
+const OpenSearchLogger = require('./open.search.logger')
+const MetricsMiddleware = require('./middlewares/metricsMiddleware')
+
+const NAMESPACE = process.env.NAMESPACE || 'dev'
+
+const {
+	REDIS_HOST,
+	REDIS_PORT,
+	REDIS_PASSWORD,
+	REDIS_CA_CERT
+} = process.env
+
+const redisConnectionParams = {
+	host: REDIS_HOST,
+	port: parseInt(REDIS_PORT) || 6379,
+	password: REDIS_PASSWORD,
+	maxPacketSize: 30 * 1024 * 1024
+}
+
+if (REDIS_CA_CERT?.length) {
+	redisConnectionParams.tls = {
+		ca: REDIS_CA_CERT
+	}
+}
+
+const prune = (obj, depth = 1) => {
+	if (Array.isArray(obj) && obj.length > 0) {
+		return (depth === 0) ? ['???'] : obj.map(e => prune(e, depth - 1))
+	} else if (obj && typeof obj === 'object' && Object.keys(obj).length > 0) {
+		return (depth === 0) ? {'???':''} : Object.keys(obj).reduce((acc, key) => ({ ...acc, [key]: prune(obj[key], depth - 1)}), {})
+	} else {
+		return obj
+	}
+}
+
+/**
+ * Moleculer ServiceBroker configuration file
+ *
+ * More info about options:
+ *     https://moleculer.services/docs/0.14/configuration.html
+ *
+ *
+ * Overwriting options in production:
+ * ================================
+ * 	You can overwrite any option with environment variables.
+ * 	For example to overwrite the 'logLevel' value, use `LOGLEVEL=warn` env var.
+ * 	To overwrite a nested parameter, e.g. retryPolicy.retries, use `RETRYPOLICY_RETRIES=10` env var.
+ *
+ * 	To overwrite broker’s deeply nested default options, which are not presented in 'moleculer.config.js',
+ * 	use the `MOL_` prefix and double underscore `__` for nested properties in .env file.
+ * 	For example, to set the cacher prefix to `MYCACHE`, you should declare an env var as `MOL_CACHER__OPTIONS__PREFIX=mycache`.
+ *  It will set this:
+ *  {
+ *    cacher: {
+ *      options: {
+ *        prefix: 'mycache'
+ *      }
+ *    }
+ *  }
+ *
+ * @type {import('moleculer').BrokerOptions}
+ */
+module.exports = {
+	// Namespace of nodes to segment your nodes on the same network.
+	namespace: NAMESPACE,
+	// Unique node identifier. Must be unique in a namespace.
+	// nodeID: null,
+	// Custom metadata store. Store here what you want. Accessing: `this.broker.metadata`
+	// metadata: {},
+
+	// Enable/disable logging or use custom logger. More info: https://moleculer.services/docs/0.14/logging.html
+	// Available logger types: 'Console', 'File', 'Pino', 'Winston', 'Bunyan', 'debug', 'Log4js', 'Datadog'
+
+	logger: [
+		{
+			type: 'Console',
+			options: {
+				// Using colors on the output
+				colors: true,
+				// Print module names with different colors (like docker-compose for containers)
+				moduleColors: false,
+				// Line formatter. It can be 'json', 'short', 'simple', 'full', a `Function` or a template string like '{timestamp} {level} {nodeID}/{mod}: {msg}'
+				formatter: 'full',
+				// Custom object printer. If not defined, it uses the `util.inspect` method.
+				objectPrinter: null,
+				// Auto-padding the module name in order to messages begin at the same column.
+				autoPadding: false
+			}
+		},
+		new OpenSearchLogger()
+	],
+
+
+	// Default log level for built-in console logger. It can be overwritten in logger options above.
+	// Available values: trace, debug, info, warn, error, fatal
+	logLevel: 'info',
+
+	// Define transporter.
+	// More info: https://moleculer.services/docs/0.14/networking.html
+	// Note: During the development, you don't need to define it because all services will be loaded locally.
+	// In production you can set it via `TRANSPORTER=nats://localhost:4222` environment variable.
+	transporter: {
+		type: 'Redis',
+		options: redisConnectionParams
+	},
+
+	// Define a cacher.
+	// More info: https://moleculer.services/docs/0.14/caching.html
+	cacher: null,
+
+	// Define a serializer.
+	// Available values: 'JSON', 'Avro', 'ProtoBuf', 'MsgPack', 'Notepack', 'Thrift'.
+	// More info: https://moleculer.services/docs/0.14/networking.html#Serialization
+	serializer: 'JSON',
+
+	// Number of milliseconds to wait before reject a request with a RequestTimeout error. Disabled: 0
+	requestTimeout: 30 * 1000,
+
+	// Retry policy settings. More info: https://moleculer.services/docs/0.14/fault-tolerance.html#Retry
+	retryPolicy: {
+		// Enable feature
+		enabled: true,
+		// Count of retries
+		retries: 5,
+		// First delay in milliseconds.
+		delay: 1000,
+		// Maximum delay in milliseconds.
+		maxDelay: 32 * 1000,
+		// Backoff factor for delay. 2 means exponential backoff.
+		factor: 2,
+		// A function to check failed requests.
+		check: err => err && !!err.retryable
+	},
+
+	// Limit of calling level. If it reaches the limit, broker will throw an MaxCallLevelError error. (Infinite loop protection)
+	maxCallLevel: 100,
+
+	// Number of seconds to send heartbeat packet to other nodes.
+	heartbeatInterval: 10,
+	// Number of seconds to wait before setting node to unavailable status.
+	heartbeatTimeout: 30,
+
+	// Cloning the params of context if enabled. High performance impact, use it with caution!
+	contextParamsCloning: false,
+
+	// Tracking requests and waiting for running requests before shuting down. More info: https://moleculer.services/docs/0.14/context.html#Context-tracking
+	tracking: {
+		// Enable feature
+		enabled: true,
+		// Number of milliseconds to wait before shuting down the process.
+		shutdownTimeout: 60 * 1000,
+	},
+
+	// Disable built-in request & emit balancer. (Transporter must support it, as well.). More info: https://moleculer.services/docs/0.14/networking.html#Disabled-balancer
+	disableBalancer: false,
+
+	// Settings of Service Registry. More info: https://moleculer.services/docs/0.14/registry.html
+	// registry: {
+	// 	// Define balancing strategy. More info: https://moleculer.services/docs/0.14/balancing.html
+	// 	// Available values: 'RoundRobin', 'Random', 'CpuUsage', 'Latency', 'Shard'
+	// 	strategy: 'RoundRobin',
+	// 	// Enable local action call preferring. Always call the local action instance if available.
+	// 	preferLocal: false
+	// },
+
+	// registry: {
+	//     strategy: 'Shard',
+	// 	preferLocal: false,
+	//     strategyOptions: {
+	//         shardKey: 'shardKey'
+	//     }
+	// },
+
+	registry: {
+		// Define balancing strategy. More info: https://moleculer.services/docs/0.14/balancing.html
+		// Available values: 'RoundRobin', 'Random', 'CpuUsage', 'Latency', 'Shard'
+		strategy: 'RoundRobin',
+		// strategy: 'Shard',
+		// strategyOptions: {
+		// 	shardKey: 'shardKey'
+		// },
+		// Enable local action call preferring. Always call the local action instance if available.
+		preferLocal: false
+	},
+
+	// Settings of Circuit Breaker. More info: https://moleculer.services/docs/0.14/fault-tolerance.html#Circuit-Breaker
+	circuitBreaker: {
+		// Enable feature
+		enabled: false,
+		// Threshold value. 0.5 means that 50% should be failed for tripping.
+		threshold: 0.5,
+		// Minimum request count. Below it, CB does not trip.
+		minRequestCount: 20,
+		// Number of seconds for time window.
+		windowTime: 60,
+		// Number of milliseconds to switch from open to half-open state
+		halfOpenTime: 10 * 1000,
+		// A function to check failed requests.
+		check: err => err && err.code >= 500
+	},
+
+	// Settings of bulkhead feature. More info: https://moleculer.services/docs/0.14/fault-tolerance.html#Bulkhead
+	bulkhead: {
+		// Enable feature.
+		enabled: false,
+		// Maximum concurrent executions.
+		concurrency: 10,
+		// Maximum size of queue
+		maxQueueSize: 100,
+	},
+
+	// Enable action & event parameter validation. More info: https://moleculer.services/docs/0.14/validating.html
+	validator: true,
+
+	errorHandler(err, info) {
+		const {ctx, action} = info
+		const metricName = `${action.name}.errors`
+		if (!ctx.broker.metrics.store.has(metricName)) {
+			ctx.broker.metrics.register({
+				type: 'counter',
+				name: metricName,
+				description: 'Error count',
+				unit: 'pc'
+			})
+		}
+
+		ctx.broker.metrics.increment(metricName, null, 1)
+
+		// throw auth and non-retryable errors to avoid 404 error
+		if (err?.code >= 400 && err?.code < 500) {
+			throw err
+		}
+
+		let payload
+		try {
+			payload = JSON.stringify(ctx.params)
+		} catch (e) {
+			this.logger.error(`JSON stringify error, params: ${JSON.stringify(prune(ctx.params, 2))}, stack: ${e.stack}, original error: ${err.stack}`)
+		}
+		this.logger.error(`Action ${ctx.action.name} error with payload: ${payload}, error: ${err}, stack: ${err?.stack}`)
+	},
+
+	// Enable/disable built-in metrics function. More info: https://moleculer.services/docs/0.14/metrics.html
+	metrics: {
+		// Available built-in reporters: 'Console', 'CSV', 'Event', 'Prometheus', 'Datadog', 'StatsD'
+		enabled: true,
+		reporter: [
+			{
+				type: 'Prometheus',
+				options: {
+					// HTTP port
+					port: 3030,
+					// HTTP URL path
+					path: '/metrics',
+					// Default labels which are appended to all metrics labels
+					defaultLabels: registry => ({
+						namespace: registry.broker.namespace,
+						nodeID: registry.broker.nodeID
+					})
+				}
+			},
+			{
+				type: 'Event',
+				options: {
+					// Event name
+					eventName: '$metrics.snapshot',
+					// Broadcast or emit
+					broadcast: false,
+					// Event groups
+					groups: null,
+					// Send only changed metrics
+					onlyChanges: false,
+					// Sending interval in seconds
+					interval: 10
+				}
+			},
+			'Laboratory'
+		]
+	},
+
+	// Enable built-in tracing function. More info: https://moleculer.services/docs/0.14/tracing.html
+	tracing: {
+		enabled: true,
+		//exporter: 'Console'
+		exporter: 'Laboratory'
+		// Available built-in exporters: 'Console', 'Datadog', 'Event', 'EventLegacy', 'Jaeger', 'Zipkin'
+		// exporter: {
+		// 	type: 'Console', // Console exporter is only for development!
+		// 	options: {
+		// 		// Custom logger
+		// 		logger: null,
+		// 		// Using colors
+		// 		colors: true,
+		// 		// Width of row
+		// 		width: 100,
+		// 		// Gauge width in the row
+		// 		gaugeWidth: 40
+		// 	}
+		// }
+	},
+
+	// Register custom middlewares
+	middlewares: [
+		ChannelNameMiddleware,
+		ChannelsMiddleware,
+		...MetricsMiddleware
+	],
+
+	// Register custom REPL commands.
+	replCommands: null,
+
+	// Called after broker created.
+	created(broker) {
+
+	},
+
+	// Called after broker started.
+	async started(broker) {
+		broker.repl()
+	},
+
+	// Called after broker stopped.
+	async stopped(broker) {
+
+	}
+}
+
+
+Code Snippet:
+const {ServiceBroker} = require('moleculer')
+const TestMixin = require('../../../mixins/one-c.mixin')
+const axios = require('axios')
+
+describe('Test \'one-c\' mixin', () => {
+	const broker = new ServiceBroker({logger: false})
+	const service = broker.createService(TestMixin)
+
+	describe('Test \'one-c\' methods', () => {
+		it('Test \'oneCUpload\' method', async () => {
+			axios.post = jest.fn(() => {
+				return {
+					status: '200'
+				}
+			})
+
+			await service.oneCUpload('someTable', {recid: '111'})
+
+			expect(axios.post).toBeCalledTimes(1)
+
+			expect(axios.post).toBeCalledWith(
+				undefined,
+				{'recid': '111'},
+				{
+					'headers': {
+						'Authorization': 'Basic undefined',
+						'keyMessage': '111',
+						'topic': 'someTable-topic'
+					}, 'withCredentials': true
+				}
+			)
+		})
+	})
+})
+
+Code Snippet:
+// lab.service.js
+const Laboratory = require('@moleculer/lab')
+
+module.exports = {
+	name: 'lab',
+	mixins: [Laboratory.AgentService],
+	settings: {
+		name: 'Enterprise Service Bus',
+		token: 'topsecret',
+		apiKey: process.env.LAB_API_KEY
+	}
+}
+
+INSTRUCTIONS:
+Please provide:
+1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
+2. A concise description of what these logs represent, suitable for a business user.
+3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
+4. Exact IDs affected by the error, if applicable. Pay special attention to:
+   - Order IDs (recid, order_number)
+   - MongoDB IDs (_id)
+   - Contract numbers
+   - Invoice numbers
+   - Product record IDs (rec_id)
+
+Focus on providing a clear and direct response to the user's question, supplemented by technical insights when necessary. Make sure to explicitly list all relevant identifiers from the error payload.

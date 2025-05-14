@@ -1,0 +1,35 @@
+
+Based on the user's query and the logs provided, determine the appropriate response.
+
+USER QUESTION: what are crm errors today?
+
+LOGS CONTEXT:
+Log Entry:
+Action crm.crmProcess error with payload: {"tableName":"crm-agreements","sendUrl":"https://crm.prosv.ru/rest/CrocEntityService/SendContracts","records":[{"_id":"6819ec155731bc56671a43c7","recid":"5639346064","agreementid_pik":"","agreementiid_kz":"A0226522","attempts":1,"cfo":"020002","channel_code":"000000001","classification_name":"Бюджетные заказы","client_type_code":0,"code":"PSVK645730","company_source":"psv","created_at":"2025-05-06T11:01:41.457Z","created_date":"2025-05-06T10:55:57.000Z","crm_status":"pending","currency":"RUB","cust_account_code":"К0007549","default_effective_date":"2025-04-30T00:00:00.000Z","delivery_date":"2025-09-30T00:00:00.000Z","diadoc_signing_status_code":0,"documentExternalReference":"Контракт № A0226522","document_date":"2025-05-06T00:00:00.000Z","document_title":"A0226522","edo_type_code":5,"end_date":"2025-12-31T00:00:00.000Z","gak":"23688","header_rec_id":"5642687870","is_correct_efu":false,"management_accouting_article":1101010100018,"number_copies_pcs":null,"owner_executor":"axuserbatch","payment_schedule":"_10_поставка","sales_district_code":"77","signing_date":"2025-05-13T00:00:00.000Z","signing_status_code":3,"source_code":1,"status_code":1,"updated_at":"2025-05-14T09:53:41.806Z","vat_amount":null,"sent_to_crm":"2025-05-12T12:12:17.405Z"}]}, error: MoleculerServerError: MoleculerServerError: crmRes.data.success: false, stack: MoleculerServerError: MoleculerServerError: crmRes.data.success: false
+    at Service.handler (/app/services/crm.service.js:199:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /app/middlewares/metricsMiddleware.js:16:17
+    at async /app/services/crm.service.js:119:6
+    at async Promise.all (index 0)
+    at async Service.crmLoop (/app/services/crm.service.js:117:4)
+    at async Service.crmStartLoop (/app/services/crm.service.js:40:5)
+
+STACK TRACE:
+
+
+CODE CONTEXT:
+
+
+INSTRUCTIONS:
+Please provide:
+1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
+2. A concise description of what these logs represent, suitable for a business user.
+3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
+4. Exact IDs affected by the error, if applicable. Pay special attention to:
+   - Order IDs (recid, order_number)
+   - MongoDB IDs (_id)
+   - Contract numbers
+   - Invoice numbers
+   - Product record IDs (rec_id)
+
+Focus on providing a clear and direct response to the user's question, supplemented by technical insights when necessary. Make sure to explicitly list all relevant identifiers from the error payload.

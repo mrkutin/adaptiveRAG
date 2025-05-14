@@ -131,15 +131,25 @@ class OpenSearchRetriever(BaseRetriever):
         for hit in result["hits"]["hits"]:
             source = hit["_source"]
             print(f"--- DOC: {source} END ---")
+            
+            # Extract stack trace if present
+            stack_trace = ""
+            msg = source.get("msg", "")
+            if "stack:" in msg:
+                stack_start = msg.find("stack:")
+                if stack_start != -1:
+                    stack_trace = msg[stack_start:].strip()
+            
             docs.append(
                 Document(
-                    page_content=source.get("msg", ""),
+                    page_content=msg,
                     metadata={
                         "level": source.get("level"),
                         "ns": source.get("ns"),
                         "svc": source.get("svc"),
                         "time": source.get("time"),
-                        "score": hit["_score"]
+                        "score": hit["_score"],
+                        "stack_trace": stack_trace
                     }
                 )
             )

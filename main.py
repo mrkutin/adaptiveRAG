@@ -6,7 +6,7 @@ from aiogram.types import Message
 from langchain_core.messages import HumanMessage
 
 from config import settings
-from workflow import ChatState, WorkflowGraph
+from workflow import ChatChain
 
 # Configure logging
 logging.basicConfig(
@@ -18,10 +18,9 @@ logger = logging.getLogger(__name__)
 class TelegramBot:
     """Class to manage Telegram bot operations."""
     def __init__(self):
-        
         self.bot = Bot(token=settings.telegram_bot_token)
         self.dp = Dispatcher()
-        self.workflow = WorkflowGraph(self.bot)
+        self.chat_chain = ChatChain(self.bot)
         
         # Register handlers
         self.register_handlers()
@@ -38,22 +37,11 @@ class TelegramBot:
     async def handle_message(self, message: Message):
         """Handle incoming messages."""
         try:
-            # Initialize state
-            initial_state = ChatState(
-                question=message.text,
+            # Process message through chat chain
+            await self.chat_chain.process_message(
                 telegram_chat_id=message.chat.id,
-                rewrite_question_attempts=2,
-                regenerate_answer_attempts=3
+                question=message.text
             )
-            
-            # Process through workflow
-            result_state = await self.workflow.process(initial_state)
-            
-            # Send the response back to the user
-            if result_state.get('generation'):
-                await message.answer(result_state['generation'])
-            else:
-                await message.answer("Sorry, I couldn't generate a response.")
             
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")

@@ -238,10 +238,10 @@ module.exports = {
 ```
 
 INSTRUCTIONS:
-Please provide:
-1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
-2. A concise description of what these logs represent, suitable for a business user.
-3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
+            Please provide:
+            1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
+            2. A concise description of what these logs represent, suitable for a business user.
+            3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
 4. Exact IDs affected by the error, if applicable. Pay special attention to:
    - Order IDs (recid, order_number)
    - MongoDB IDs (_id)
