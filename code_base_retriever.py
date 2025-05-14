@@ -16,6 +16,7 @@ from langchain_community.query_constructors.chroma import ChromaTranslator
 from langchain.retrievers.self_query.base import SelfQueryRetriever
 from langchain_ollama import ChatOllama
 from pydantic import Field, PrivateAttr
+import re
 
 from config import settings
 
@@ -117,14 +118,27 @@ class CodeBaseRetriever(BaseRetriever):
         Returns:
             List of found documents
         """
-        # Debug: Print the structured query
-        structured_query = self._retriever.query_constructor.invoke(query)
-        print("\nStructured Query:")
-        print("----------------")
-        print(f"Query: {query}")
-        print(f"Structured Query: {structured_query}")
-        print("----------------\n")
+        # If query contains stack trace, extract files and search for them
+        if "stack:" in query or "at " in query:
+            print("\nExtracting files from stack trace...")
+            # Extract file paths from stack trace
+            file_paths = set()  # Use set to deduplicate
+            # Find all filenames between / and .js
+            matches = re.findall(r'/([^/]+\.js)', query)
+            for filename in matches:
+                print(f"Found file: {filename}")
+                file_paths.add(filename)
+            
+            if file_paths:
+                print(f"\nFound files in stack trace: {sorted(file_paths)}")
+                # Create a query that searches for all files
+                file_query = " OR ".join(f"filename:{filepath}" for filepath in sorted(file_paths))
+                print(f"Searching for: {file_query}")
+                return self._retriever.invoke(file_query)
+            else:
+                print("No JavaScript files found in stack trace")
         
+        # If not a stack trace or no files found, use normal search
         return self._retriever.invoke(query)
 
     async def _aget_relevant_documents(
@@ -139,6 +153,27 @@ class CodeBaseRetriever(BaseRetriever):
         Returns:
             List of found documents
         """
+        # If query contains stack trace, extract files and search for them
+        if "stack:" in query or "at " in query:
+            print("\nExtracting files from stack trace...")
+            # Extract file paths from stack trace
+            file_paths = set()  # Use set to deduplicate
+            # Find all filenames between / and .js
+            matches = re.findall(r'/([^/]+\.js)', query)
+            for filename in matches:
+                print(f"Found file: {filename}")
+                file_paths.add(filename)
+            
+            if file_paths:
+                print(f"\nFound files in stack trace: {sorted(file_paths)}")
+                # Create a query that searches for all files
+                file_query = " OR ".join(f"filename:{filepath}" for filepath in sorted(file_paths))
+                print(f"Searching for: {file_query}")
+                return await self._retriever.ainvoke(file_query)
+            else:
+                print("No JavaScript files found in stack trace")
+        
+        # If not a stack trace or no files found, use normal search
         return await self._retriever.ainvoke(query)
 
 
@@ -151,14 +186,25 @@ if __name__ == "__main__":
         # "what generatorLoop does in generator.mixin.js?",
         # "how to handle errors?",
         # "what is the main function?",
-        "where is this error handled? MoleculerServerError: AxiosError: Request failed with status code 400 at Service.handler (/app/services/crm.service.js:199:13)?",
+        # "where is this error handled? MoleculerServerError: AxiosError: Request failed with status code 400 at Service.handler (/app/services/crm.service.js:199:13)?",
+        """stack: MoleculerServerError: MoleculerServerError: crmRes.data.success: false
+            at Service.handler (/app/services/crm.service.js:199:13)
+            at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+            at async /app/middlewares/metricsMiddleware.js:16:17
+            at async /app/services/crm.service.js:119:6
+            at async Promise.all (index 0)
+            at async Service.crmLoop (/app/services/crm.service.js:117:4)
+            at async Service.crmStartLoop (/app/services/crm.service.js:40:5)"""
     ]
 
     for query in test_queries:
         print(f"\nQuery: {query}")
         print("--------------------------------")
         docs = retriever.invoke(query)
+        if docs:
+            print(f"Found {len(docs)} documents")
+            print("--------------------------------")
         for doc in docs:
-            print(f"Content: {doc.page_content[:200]}...")
+            # print(f"Content: {doc.page_content[:200]}...")
             print(f"Metadata: {doc.metadata}")
             print("--------------------------------")
