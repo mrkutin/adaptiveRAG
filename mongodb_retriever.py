@@ -174,10 +174,23 @@ if __name__ == "__main__":
     retriever = MongoDBRetriever()
     
     tests = [
-        "Find item with ISBN 978-5-9963-5562-4",
-        "Show items by author Репкин",
-        "Find items about Букварь",
-        # Add more test queries here
+        # Items collection tests
+        # "Find item with ISBN 978-5-9963-5562-4",
+        # "Show items by author Репкин",
+        # "Find items about Букварь",
+        
+        # CRM Agreements collection tests
+        # "Find agreement with code PSVK460534",
+       str("Show agreements for customer К0015433"),
+        # "Find agreements with document title A0053335",
+        # "Show agreements in classification Бюджетные заказы",
+        # "Find agreements with GAK 39286",
+        # "Show agreements with CFO 020002",
+        # "Find agreements created on 2023-05-05",
+        # "Show agreements with delivery date 2023-09-30",
+        # "Find agreements with signing status 4",
+        # "Show agreements with CRM status success",
+        # "Find agreements with document reference Контракт № A0053335"
     ]
 
     for test in tests:

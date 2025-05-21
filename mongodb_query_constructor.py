@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Union
 from langchain_community.llms import Ollama
 from langchain_core.prompts import ChatPromptTemplate
 import json
@@ -22,13 +22,16 @@ class MongoDBQueryConstructor:
 2. The relevant search terms
 3. The most appropriate fields to search in
 
+IMPORTANT: You MUST preserve the EXACT characters from the input query in the search_term. 
+Do not convert or transliterate any characters (e.g., keep Cyrillic 'К' as is, don't convert it to Latin 'K').
+
 Available fields for the 'items' collection:
 {fields}
 
 You must respond with a valid JSON object in this exact format:
 {{
     "intent": "isbn|author|topic|general",
-    "search_term": "the actual term to search for",
+    "search_term": "the actual term to search for (preserve exact characters)",
     "fields": ["list", "of", "relevant", "fields"]
 }}
 
@@ -39,16 +42,18 @@ Do not include any other text or explanation, just the JSON object."""),
         # Define collection configurations
         self.collection_configs = {
             "items": {
-                "search_fields": [
+                "exact_match_fields": [
                     "itemid",
+                    "inventedition.isbn",
+                    "inventedition.inventeditionid"
+                ],
+                "regex_match_fields": [
                     "namealias",
                     "inventcontent.namealias",
                     "inventcontent.authors",
                     "inventcontent.annotation",
                     "inventcontent.notes",
-                    "inventcontentgroup.namealias",
-                    "inventedition.isbn",
-                    "inventedition.inventeditionid"
+                    "inventcontentgroup.namealias"
                 ],
                 "metadata_fields": [
                     "itemid",
@@ -69,6 +74,63 @@ Do not include any other text or explanation, just the JSON object."""),
                     "updated_at"
                 ],
                 "content_field": "inventcontent.notes"
+            },
+            "crm-agreements": {
+                "exact_match_fields": [
+                    "code",
+                    "recid",
+                    "cust_account_code",
+                    "gak",
+                    "cfo",
+                    "agreementid_pik",
+                    "agreementiid_kz",
+                    "header_rec_id"
+                ],
+                "regex_match_fields": [
+                    "documentExternalReference",
+                    "document_title",
+                    "classification_name",
+                    "owner_executor"
+                ],
+                "metadata_fields": [
+                    "code",
+                    "recid",
+                    "channel_code",
+                    "classification_name",
+                    "client_type_code",
+                    "company_source",
+                    "created_at",
+                    "created_date",
+                    "currency",
+                    "cust_account_code",
+                    "default_effective_date",
+                    "delivery_date",
+                    "documentExternalReference",
+                    "document_date",
+                    "document_title",
+                    "edo_type_code",
+                    "end_date",
+                    "gak",
+                    "header_rec_id",
+                    "owner_executor",
+                    "payment_schedule",
+                    "sales_district_code",
+                    "signing_date",
+                    "signing_status_code",
+                    "source_code",
+                    "status_code",
+                    "updated_at",
+                    "vat_amount",
+                    "sent_to_crm",
+                    "cfo",
+                    "management_accouting_article",
+                    "agreementid_pik",
+                    "agreementiid_kz",
+                    "attempts",
+                    "crm_status",
+                    "is_correct_efu"
+                ],
+                "content_field": "documentExternalReference"
             }
         }
 
@@ -79,7 +141,8 @@ Do not include any other text or explanation, just the JSON object."""),
             raise ValueError(f"Unknown collection: {collection}")
             
         # Format available fields for the prompt
-        fields_str = "\n".join(f"- {field}" for field in config["search_fields"])
+        all_fields = config["exact_match_fields"] + config["regex_match_fields"]
+        fields_str = "\n".join(f"- {field}" for field in all_fields)
         
         # Get AI analysis
         response = self.llm.invoke(
@@ -101,23 +164,42 @@ Do not include any other text or explanation, just the JSON object."""),
             )
         except:
             # Fallback to general search if analysis fails
-            return "general", query, config["search_fields"]
+            return "general", query, all_fields
 
     def construct_query(self, query: str, collection: str) -> Dict[str, Any]:
         """Construct a MongoDB query from a natural language question."""
         # Use AI to analyze the query
         intent, search_term, fields = self._analyze_query(query, collection)
+        config = self.collection_configs[collection]
 
         # Build the query based on the analysis
         if len(fields) == 1:
+            # Use exact matching for identifiers and case-insensitive for text
+            if fields[0] in config["exact_match_fields"]:
+                return {fields[0]: search_term}
             return {fields[0]: {"$regex": search_term, "$options": "i"}}
         
-        return {
-            "$or": [
-                {field: {"$regex": search_term, "$options": "i"}}
-                for field in fields
-            ]
-        }
+        # For multiple fields, use exact matching for identifiers
+        exact_matches = []
+        regex_matches = []
+        
+        for field in fields:
+            if field in config["exact_match_fields"]:
+                exact_matches.append({field: search_term})
+            else:
+                regex_matches.append({field: {"$regex": search_term, "$options": "i"}})
+        
+        if exact_matches and regex_matches:
+            return {
+                "$or": [
+                    {"$and": exact_matches},
+                    *regex_matches
+                ]
+            }
+        elif exact_matches:
+            return {"$or": exact_matches}
+        else:
+            return {"$or": regex_matches}
 
     async def aconstruct_query(self, query: str, collection: str) -> Dict[str, Any]:
         """Construct a MongoDB query from a natural language question asynchronously."""
