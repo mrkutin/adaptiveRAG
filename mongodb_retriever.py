@@ -8,6 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pprint import pformat
 from config import settings
 import certifi
+from mongodb_query_constructor import MongoDBQueryConstructor
 
 
 class MongoDBRetriever(BaseRetriever):
@@ -28,10 +29,13 @@ class MongoDBRetriever(BaseRetriever):
     # Use private attributes
     _client: MongoClient = PrivateAttr()
     _aclient: AsyncIOMotorClient = PrivateAttr()
-    _collection_configs: Dict[str, Dict[str, Any]] = PrivateAttr()
+    _query_constructor: MongoDBQueryConstructor = PrivateAttr()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+        # Initialize query constructor
+        self._query_constructor = MongoDBQueryConstructor()
 
         # Initialize MongoDB client with SSL/TLS
         connection_string = f"mongodb://{self.username}:{self.password}@{','.join(self.hosts)}/{self.database}?replicaSet={self.replica_set}&authSource={self.auth_source}"
@@ -50,118 +54,21 @@ class MongoDBRetriever(BaseRetriever):
         self._client = MongoClient(connection_string, **tls_options)
         self._aclient = AsyncIOMotorClient(connection_string, **tls_options)
 
-        # Define collection configurations
-        self._collection_configs = {
-            "items": {
-                "search_fields": [
-                    "itemid",
-                    "namealias",
-                    "inventcontent.namealias",
-                    "inventcontent.authors",
-                    "inventcontent.annotation",
-                    "inventcontent.notes",
-                    "inventcontentgroup.namealias",
-                    "inventedition.isbn",
-                    "inventedition.inventeditionid"
-                ],
-                "metadata_fields": [
-                    "itemid",
-                    "namealias",
-                    "inventcontent.namealias",
-                    "inventcontent.authors",
-                    "inventcontent.inventcontentcode",
-                    "inventcontent.inventcontentid",
-                    "inventedition.isbn",
-                    "inventedition.inventeditionid",
-                    "inventedition.inventeditioncode",
-                    "inventedition.inventtitleyearid",
-                    "inventcontentgroup.namealias",
-                    "inventcontentgroup.inventcontentgroupcode",
-                    "inventcontentgroup.language",
-                    "inventcontentgroup.numberparts",
-                    "inventcontentgroup.partnumber",
-                    "updated_at"
-                ],
-                "content_field": "inventcontent.notes",
-                "query_patterns": {
-                    "isbn": {
-                        "pattern": "isbn",
-                        "extract_after": "ISBN",
-                        "search_fields": ["inventedition.isbn"]
-                    },
-                    "author": {
-                        "pattern": "author",
-                        "extract_after": "author",
-                        "search_fields": ["inventcontent.authors"]
-                    },
-                    "topic": {
-                        "pattern": "about",
-                        "extract_after": "about",
-                        "search_fields": [
-                            "namealias",
-                            "inventcontent.namealias",
-                            "inventcontent.annotation",
-                            "inventcontent.notes"
-                        ]
-                    }
-                }
-            }
-        }
-
-    def _build_query(self, collection: str, query: str) -> Dict[str, Any]:
-        """Build MongoDB query based on collection configuration."""
-        config = self._collection_configs.get(collection)
-        if not config:
-            raise ValueError(f"Unknown collection: {collection}")
-
-        query_lower = query.lower()
-        
-        # Check each query pattern in the configuration
-        for pattern_config in config["query_patterns"].values():
-            if pattern_config["pattern"] in query_lower:
-                # Extract search term after the specified text
-                search_term = query.split(pattern_config["extract_after"])[-1].strip()
-                
-                # If only one search field, return simple query
-                if len(pattern_config["search_fields"]) == 1:
-                    return {pattern_config["search_fields"][0]: {"$regex": search_term, "$options": "i"}}
-                
-                # If multiple search fields, return OR query
-                return {
-                    "$or": [
-                        {field: {"$regex": search_term, "$options": "i"}}
-                        for field in pattern_config["search_fields"]
-                    ]
-                }
-        
-        # If no pattern matches, use all search fields
-        return {
-            "$or": [
-                {field: {"$regex": query, "$options": "i"}}
-                for field in config["search_fields"]
-            ]
-        }
-
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> List[Document]:
-        """Search documents in MongoDB.
-        
-        Args:
-            query: The natural language query
-            run_manager: Callback manager
-            
-        Returns:
-            List of found documents
-        """
+        """Search documents in MongoDB."""
         all_docs = []
         
         # Search in each configured collection
-        for collection_name, config in self._collection_configs.items():
+        for collection_name in self._query_constructor.collection_configs.keys():
             print(f"\nSearching in collection: {collection_name}")
             
+            # Get collection config
+            config = self._query_constructor.get_collection_config(collection_name)
+            
             # Build query for this collection
-            mongo_query = self._build_query(collection_name, query)
+            mongo_query = self._query_constructor.construct_query(query, collection_name)
             print(f"MongoDB query: {pformat(mongo_query)}")
             print("--------------------------------")
             
@@ -207,23 +114,18 @@ class MongoDBRetriever(BaseRetriever):
     async def _aget_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> List[Document]:
-        """Search documents in MongoDB asynchronously.
-        
-        Args:
-            query: The natural language query
-            run_manager: Callback manager
-            
-        Returns:
-            List of found documents
-        """
+        """Search documents in MongoDB asynchronously."""
         all_docs = []
         
         # Search in each configured collection
-        for collection_name, config in self._collection_configs.items():
+        for collection_name in self._query_constructor.collection_configs.keys():
             print(f"\nSearching in collection: {collection_name}")
             
+            # Get collection config
+            config = self._query_constructor.get_collection_config(collection_name)
+            
             # Build query for this collection
-            mongo_query = self._build_query(collection_name, query)
+            mongo_query = await self._query_constructor.aconstruct_query(query, collection_name)
             print(f"MongoDB query: {pformat(mongo_query)}")
             print("--------------------------------")
             

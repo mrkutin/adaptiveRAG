@@ -22,11 +22,11 @@ class Settings(BaseSettings):
     log_summarizer_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_TEMPERATURE"})
     log_summarizer_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "LOG_SUMMARIZER_OLLAMA_NUM_CTX"})
 
-    # Retriever Ollama settings
-    retriever_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "RETRIEVER_OLLAMA_BASE_URL"})
-    retriever_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "RETRIEVER_OLLAMA_MODEL"})
-    retriever_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "RETRIEVER_OLLAMA_TEMPERATURE"})
-    retriever_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "RETRIEVER_OLLAMA_NUM_CTX"})
+    # # Retriever Ollama settings
+    # retriever_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "RETRIEVER_OLLAMA_BASE_URL"})
+    # retriever_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "RETRIEVER_OLLAMA_MODEL"})
+    # retriever_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "RETRIEVER_OLLAMA_TEMPERATURE"})
+    # retriever_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "RETRIEVER_OLLAMA_NUM_CTX"})
     
     # Retrieval Grader Ollama settings
     retrieval_grader_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "RETRIEVER_OLLAMA_BASE_URL"})
@@ -86,6 +86,18 @@ class Settings(BaseSettings):
     codebase_embedding_model: str = Field(default="unclemusclez/jina-embeddings-v2-base-code", json_schema_extra={"env": "CODEBASE_EMBEDDING_MODEL"})
     codebase_k: int = Field(default=1, json_schema_extra={"env": "CODEBASE_K"})
     
+    # MongoDB Retriever Ollama settings
+    mongodb_retriever_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "MONGODB_RETRIEVER_OLLAMA_BASE_URL"})
+    mongodb_retriever_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "MONGODB_RETRIEVER_OLLAMA_MODEL"})
+    mongodb_retriever_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "MONGODB_RETRIEVER_OLLAMA_TEMPERATURE"})
+    mongodb_retriever_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "MONGODB_RETRIEVER_OLLAMA_NUM_CTX"})
+    
+    # OpenSearch Retriever Ollama settings
+    opensearch_retriever_ollama_base_url: str = Field(default="http://127.0.0.1:11434", json_schema_extra={"env": "OPENSEARCH_RETRIEVER_OLLAMA_BASE_URL"})
+    opensearch_retriever_ollama_model: str = Field(default="qwen2.5-coder", json_schema_extra={"env": "OPENSEARCH_RETRIEVER_OLLAMA_MODEL"})
+    opensearch_retriever_ollama_temperature: float = Field(default=0, json_schema_extra={"env": "OPENSEARCH_RETRIEVER_OLLAMA_TEMPERATURE"})
+    opensearch_retriever_ollama_num_ctx: int = Field(default=8192, json_schema_extra={"env": "OPENSEARCH_RETRIEVER_OLLAMA_NUM_CTX"})
+
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',

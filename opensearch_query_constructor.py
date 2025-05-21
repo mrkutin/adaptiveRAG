@@ -17,10 +17,10 @@ class OpenSearchQueryConstructor:
     
     def __init__(self):
         self.llm = ChatOllama(
-            base_url=settings.retriever_ollama_base_url,
-            model=settings.retriever_ollama_model,
-            temperature=settings.retriever_ollama_temperature,
-            num_ctx=settings.retriever_ollama_num_ctx
+            base_url=settings.opensearch_retriever_ollama_base_url,
+            model=settings.opensearch_retriever_ollama_model,
+            temperature=settings.opensearch_retriever_ollama_temperature,
+            num_ctx=settings.opensearch_retriever_ollama_num_ctx
         )
         
         self.base_template = (
