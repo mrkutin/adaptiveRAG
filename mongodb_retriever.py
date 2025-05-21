@@ -82,7 +82,29 @@ class MongoDBRetriever(BaseRetriever):
                     "inventcontentgroup.partnumber",
                     "updated_at"
                 ],
-                "content_field": "inventcontent.notes"
+                "content_field": "inventcontent.notes",
+                "query_patterns": {
+                    "isbn": {
+                        "pattern": "isbn",
+                        "extract_after": "ISBN",
+                        "search_fields": ["inventedition.isbn"]
+                    },
+                    "author": {
+                        "pattern": "author",
+                        "extract_after": "author",
+                        "search_fields": ["inventcontent.authors"]
+                    },
+                    "topic": {
+                        "pattern": "about",
+                        "extract_after": "about",
+                        "search_fields": [
+                            "namealias",
+                            "inventcontent.namealias",
+                            "inventcontent.annotation",
+                            "inventcontent.notes"
+                        ]
+                    }
+                }
             }
         }
 
@@ -94,41 +116,31 @@ class MongoDBRetriever(BaseRetriever):
 
         query_lower = query.lower()
         
-        # Build specific queries based on search intent
-        if "isbn" in query_lower:
-            # ISBN search - look only in ISBN field
-            isbn = query.split("ISBN")[-1].strip()
-            return {"inventedition.isbn": {"$regex": isbn, "$options": "i"}}
-            
-        elif "author" in query_lower:
-            # Author search - look in authors field
-            author = query.split("author")[-1].strip()
-            return {"inventcontent.authors": {"$regex": author, "$options": "i"}}
-            
-        elif "about" in query_lower:
-            # Topic search - look in name, annotation and notes
-            topic = query.split("about")[-1].strip()
-            return {
-                "$or": [
-                    {"namealias": {"$regex": topic, "$options": "i"}},
-                    {"inventcontent.namealias": {"$regex": topic, "$options": "i"}},
-                    {"inventcontent.annotation": {"$regex": topic, "$options": "i"}},
-                    {"inventcontent.notes": {"$regex": topic, "$options": "i"}}
-                ]
-            }
-            
-        else:
-            # General search - look in all relevant fields
-            return {
-                "$or": [
-                    {"itemid": {"$regex": query, "$options": "i"}},
-                    {"namealias": {"$regex": query, "$options": "i"}},
-                    {"inventcontent.namealias": {"$regex": query, "$options": "i"}},
-                    {"inventcontent.authors": {"$regex": query, "$options": "i"}},
-                    {"inventcontent.annotation": {"$regex": query, "$options": "i"}},
-                    {"inventcontent.notes": {"$regex": query, "$options": "i"}}
-                ]
-            }
+        # Check each query pattern in the configuration
+        for pattern_config in config["query_patterns"].values():
+            if pattern_config["pattern"] in query_lower:
+                # Extract search term after the specified text
+                search_term = query.split(pattern_config["extract_after"])[-1].strip()
+                
+                # If only one search field, return simple query
+                if len(pattern_config["search_fields"]) == 1:
+                    return {pattern_config["search_fields"][0]: {"$regex": search_term, "$options": "i"}}
+                
+                # If multiple search fields, return OR query
+                return {
+                    "$or": [
+                        {field: {"$regex": search_term, "$options": "i"}}
+                        for field in pattern_config["search_fields"]
+                    ]
+                }
+        
+        # If no pattern matches, use all search fields
+        return {
+            "$or": [
+                {field: {"$regex": query, "$options": "i"}}
+                for field in config["search_fields"]
+            ]
+        }
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
