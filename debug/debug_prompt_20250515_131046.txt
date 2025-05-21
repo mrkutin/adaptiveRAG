@@ -1,0 +1,307 @@
+
+Based on the user's query and the logs provided, determine the appropriate response.
+
+USER QUESTION: what were crm errors yesterday?
+
+LOGS CONTEXT:
+Log Entry:
+Action crm.crmProcess error with payload: {"tableName":"crm-agreements","sendUrl":"https://crm.prosv.ru/rest/CrocEntityService/SendContracts","records":[{"_id":"6819ec155731bc56671a43c7","recid":"5639346064","agreementid_pik":"","agreementiid_kz":"A0226522","attempts":3,"cfo":"020002","channel_code":"000000001","classification_name":"Бюджетные заказы","client_type_code":0,"code":"PSVK645730","company_source":"psv","created_at":"2025-05-06T11:01:41.457Z","created_date":"2025-05-06T10:55:57.000Z","crm_status":"pending","currency":"RUB","cust_account_code":"К0007549","default_effective_date":"2025-04-30T00:00:00.000Z","delivery_date":"2025-09-30T00:00:00.000Z","diadoc_signing_status_code":0,"documentExternalReference":"Контракт № A0226522","document_date":"2025-05-06T00:00:00.000Z","document_title":"A0226522","edo_type_code":5,"end_date":"2025-12-31T00:00:00.000Z","gak":"23688","header_rec_id":"5642687870","is_correct_efu":false,"management_accouting_article":1101010100018,"number_copies_pcs":null,"owner_executor":"axuserbatch","payment_schedule":"_10_поставка","sales_district_code":"77","signing_date":"2025-05-13T00:00:00.000Z","signing_status_code":3,"source_code":1,"status_code":1,"updated_at":"2025-05-14T11:56:08.693Z","vat_amount":null,"sent_to_crm":"2025-05-12T12:12:17.405Z"}]}, error: MoleculerServerError: MoleculerServerError: crmRes.data.success: false, stack: MoleculerServerError: MoleculerServerError: crmRes.data.success: false
+    at Service.handler (/app/services/crm.service.js:199:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /app/middlewares/metricsMiddleware.js:16:17
+    at async /app/services/crm.service.js:119:6
+    at async Promise.all (index 0)
+    at async Service.crmLoop (/app/services/crm.service.js:117:4)
+    at async Service.crmStartLoop (/app/services/crm.service.js:40:5)
+
+STACK TRACE:
+stack: MoleculerServerError: MoleculerServerError: crmRes.data.success: false
+    at Service.handler (/app/services/crm.service.js:199:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /app/middlewares/metricsMiddleware.js:16:17
+    at async /app/services/crm.service.js:119:6
+    at async Promise.all (index 0)
+    at async Service.crmLoop (/app/services/crm.service.js:117:4)
+    at async Service.crmStartLoop (/app/services/crm.service.js:40:5)
+
+CODE CONTEXT:
+Code Snippet:
+module.exports = [
+	{
+		localAction(next, action) {
+			return async function (ctx) {
+				const metricName = `${action.name.replaceAll('$', '')}.duration`
+				if (!ctx.broker.metrics.store.has(metricName)) {
+					ctx.broker.metrics.register({
+						type: 'gauge',
+						name: metricName,
+						description: 'Action time duration',
+						unit: 'millisecond'
+					})
+				}
+
+				const time = Date.now()
+				const res = await next(ctx)
+				const duration = Date.now() - time
+
+				ctx.broker.metrics.set(metricName, duration)
+				return res
+			}
+		}
+	},
+	{
+		localChannel(next, channel) {
+			return async (msg, raw) => {
+				try {
+					await next(msg, raw)
+				} catch (err) {
+					const metricName = `${channel.group}.${channel.name}.errors`
+					if (!msg.broker.metrics.store.has(metricName)) {
+						msg.broker.metrics.register({
+							type: 'counter',
+							name: metricName,
+							description: 'Error count',
+							unit: 'pc'
+						})
+					}
+
+					msg.broker.metrics.increment(metricName, null, 1)
+					throw err
+				}
+			}
+		}
+	}
+]
+
+Code Snippet:
+const axios = require('axios')
+const {setInterval} = require('node:timers/promises')
+const { MoleculerServerError } = require('moleculer').Errors
+const crmTablesData = require(`${__dirname}/../configs/crm.config.js`)
+const StateMixin = require('../mixins/state.mixin')
+
+const {
+	CRM_RECORDS_SIZE,
+	CRM_THREADS_COUNT,
+	CRM_AUTH_USER_NAME,
+	CRM_AUTH_USER_PASSWORD,
+	CRM_HOST,
+	CRM_LOGIN_ENDPOINT,
+	CRM_LOGOUT_ENDPOINT,
+	CRM_CLIENTS_TABLE_NAME
+} = process.env
+
+module.exports = {
+	name: 'crm',
+
+	mixins: [StateMixin],
+
+	methods: {
+		split (arr, size) {
+			return arr.reduce(
+				(acc, e, i) => {
+					i % size
+						? acc[acc.length - 1].push(e)
+						: acc.push([e])
+					return acc
+				}, [])
+		},
+		async crmStartLoop() {
+			await this.broker.waitForServices([this.name])
+			for await (const startTime of setInterval(5000, Date.now())) {
+				if (this.broker.stopping) {
+					this.logger.info(`${this.name} service has stopped, exit the loop`)
+					break
+				}
+				await this.crmLoop()
+			}
+			await this.mongoDisconnect()
+		},
+
+		async crmLoop() {
+			const pool = await Promise.all(crmTablesData.map(async tableData => {
+				const {
+					tableName, recordsCount,
+					sendUrl, matchQuery
+				} = tableData
+
+				const records = await this.getRecords(
+					tableName,
+					[
+						{
+							$match: {
+								$and: [
+									matchQuery,
+									{
+										$or: [
+											{
+												crm_status: 'ready'
+											},
+											{
+												crm_status: 'pending',
+												attempts: {
+													$lt: 24
+												},
+												updated_at: {
+													$lt: new Date(new Date().getTime() - 60 * 60 * 1000)
+												}
+											}
+										]
+									}
+								]
+							}
+						},
+						{
+							$sort: {
+								crm_status: 1,
+								updated_at: 1
+							}
+						},
+						{
+							$limit: recordsCount * parseInt(CRM_THREADS_COUNT)
+						}
+					]
+				)
+
+				const recordsBySize = []
+				for (const record of records) {
+					if (JSON.stringify(recordsBySize).length > parseInt(CRM_RECORDS_SIZE) * parseInt(CRM_THREADS_COUNT)) {
+						break
+					}
+					recordsBySize.push(record)
+				}
+
+				return {tableName, sendUrl, recordsBySize}
+			}))
+
+			const chunks = pool.reduce((acc, tablePool) => {
+				const splittedRecordsBySize = this.split(tablePool.recordsBySize, Math.ceil(tablePool.recordsBySize.length / parseInt(CRM_THREADS_COUNT)))
+				for (let i = 0; i < splittedRecordsBySize.length; i++) {
+					if (!acc[i]) {
+						acc[i] = {}
+					}
+					if (!acc[i][tablePool.tableName]) {
+						acc[i][tablePool.tableName] = {}
+					}
+
+					acc[i][tablePool.tableName].sendUrl = tablePool.sendUrl
+					acc[i][tablePool.tableName].records = splittedRecordsBySize[i]
+				}
+				return acc
+			}, [])
+
+			await Promise.all(chunks.map(async chunk => {
+				for (const key of Object.keys(chunk)) {
+					await this.broker.call(`${this.name}.crmProcess`, {
+						tableName: key,
+						sendUrl: chunk[key].sendUrl,
+						records: chunk[key].records
+					})
+				}
+			}))
+		},
+		async openSession() {
+			const crmAuthRes = await axios.post(CRM_HOST + CRM_LOGIN_ENDPOINT, {
+				UserName: CRM_AUTH_USER_NAME,
+				UserPassword: CRM_AUTH_USER_PASSWORD
+			})
+
+			if (crmAuthRes.status !== 200 || !crmAuthRes.data || crmAuthRes.data.Code !== 0) {
+				throw new MoleculerServerError(`CRM login status is ${crmAuthRes.status}`)
+			}
+
+			const cookies = crmAuthRes?.headers?.['set-cookie'].map(val => val.split(';')[0])
+			const crmCsrfCookieArray = crmAuthRes?.headers?.['set-cookie'].find(val => val.startsWith('BPMCSRF')).split(';')
+			const crmCsrfHeaderArray = crmCsrfCookieArray.find(val => val.startsWith('BPMCSRF')).split('=')
+
+			this.logger.info(`SESSION OPENED at ${new Date()}`)
+			return {cookies, crmCsrfHeaderArray}
+		},
+		async upload(tableName, cookies, crmCsrfHeaderArray, records, sendingEndpoint) {
+			const crmRes = await axios.post(sendingEndpoint,
+				records,
+				{
+					withCredentials: true,
+					headers: {
+						[crmCsrfHeaderArray[0]]: crmCsrfHeaderArray[1],
+						Cookie: cookies.join(', ')
+					}
+				})
+			if (!crmRes.data.success) {
+				throw new MoleculerServerError(`crmRes.data.success: ${crmRes.data.success}`)
+			}
+			cookies[0] = (crmRes?.headers?.['set-cookie'].map(val => val.split(';')[0])).join('')
+			this.logger.info(`${tableName} posted OK at ${new Date()} - success: ${crmRes.data.success}, created: ${crmRes.data.created}, updated: ${crmRes.data.updated}, payload: ${JSON.stringify(records)}`)
+			return cookies
+		},
+		async closeSession(cookies, crmCsrfHeaderArray) {
+			const logoutRes = await axios.post(CRM_HOST + CRM_LOGOUT_ENDPOINT,
+				{},
+				{
+					headers: {
+						[crmCsrfHeaderArray[0]]: crmCsrfHeaderArray[1],
+						Cookie: cookies.join(', ')
+					}
+				})
+			this.logger.info(`Logout status: ${logoutRes?.status || null}`)
+			this.logger.info(`Logout statusText: ${logoutRes?.statusText || null}`)
+			this.logger.info(`SESSION CLOSED at ${new Date()}`)
+		}
+	},
+
+	actions: {
+		crmProcess: {
+			timeout: 5 * 60 * 1000,
+			retryPolicy: {
+				enabled: false
+			},
+			async handler(ctx) {
+				this.logger.info(`Action ${ctx.action.name} input: ${JSON.stringify(ctx.params)}`)
+				const {tableName, sendUrl, records} = ctx.params
+				await this.updateRecords(
+					tableName,
+					{recid: {$in: records.map(res => res.recid)} },
+					{$inc: {attempts: 1}, $set: {crm_status: 'pending', updated_at: new Date()}}
+				)
+
+				let {cookies, crmCsrfHeaderArray} = await this.openSession()
+				try {
+					cookies = await this.upload(tableName, cookies, crmCsrfHeaderArray, records, sendUrl)
+				} catch (e) {
+					if (e?.code === 504) {
+						this.logger.error(`CRM upload request is timed out with payload: ${JSON.stringify(records, null, 2)}`)
+					} else {
+						await this.closeSession(cookies, crmCsrfHeaderArray)
+						throw new MoleculerServerError(e)
+					}
+				}
+
+				await this.closeSession(cookies, crmCsrfHeaderArray)
+				await this.updateRecords(
+					tableName,
+					{recid: {$in: records.map(res => res.recid)} },
+					{$set: {crm_status: 'success', sent_to_crm: new Date(), updated_at: new Date(), attempts: 1}}
+				)
+			}
+		}
+	},
+
+	async started() {
+		this.crmStartLoop()
+	}
+}
+
+
+INSTRUCTIONS:
+Please provide:
+1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
+2. A concise description of what these logs represent, suitable for a business user.
+3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
+4. Exact IDs affected by the error, if applicable. Pay special attention to:
+   - Order IDs (recid, order_number)
+   - MongoDB IDs (_id)
+   - Contract numbers
+   - Invoice numbers
+   - Product record IDs (rec_id)
+
+Focus on providing a clear and direct response to the user's question, supplemented by technical insights when necessary. Make sure to explicitly list all relevant identifiers from the error payload.

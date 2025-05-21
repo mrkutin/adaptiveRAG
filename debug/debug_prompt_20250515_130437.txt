@@ -1,0 +1,307 @@
+
+Based on the user's query and the logs provided, determine the appropriate response.
+
+USER QUESTION: what were crm errors yesterday?
+
+LOGS CONTEXT:
+Log Entry:
+Action crm.crmProcess error with payload: {"tableName":"crm-ax-realization-orders","sendUrl":"https://crm.prosv.ru/rest/CrocEntityService/SendRealizationOrders","records":[{"_id":"68194c755731bc566709942b","recid":"PSV-767732","account_code":"К0011265","actual_date":"2025-05-10T00:00:00.000Z","agreementid_pik":"","agreementiid_kz":"A0182598","amount":171.93,"amount_without_vat":156.3,"attempts":0,"axapta_created_date":"2025-05-04T07:46:18.000Z","axapta_createdby":"AMogilny","axapta_modifiedby":"AMogilny","axapta_status_code":"32","channel_code":"000000001","company":"psv","consignee_code":"К0011265","consolidated_number":"PSV-739253","contract_delivery_date":"2025-05-10T00:00:00.000Z","contract_description":"","contract_name":"","contract_number":"PSVK611674","created_at":"2025-05-05T23:40:37.484Z","crm_status":"ready","date_actual_delivery":null,"delivery_address":"433300, Ульяновская область, город Новоульяновск, посёлок Северный, ФКУ ИК-2","delivery_method":"","due_date":"2025-05-10T00:00:00.000Z","invoice_date":"2025-05-10T00:00:00.000Z","invoice_number":"000038836","is_budget":true,"is_tax_price":false,"number":"PSV-767732","order_number":"PSV-739253-К0011265","order_source_code":"1","order_type_code":2,"price_date":null,"product_details":[{"item_code":"NM0163834","unit":"шт","quantity":1,"price":156.3,"vat_price":171.93,"one_discount":0,"discount_percent":0,"total_amount":171.93,"total_amount_without_vat":156.3,"tax_rate":0,"rec_id":"5639286625","activity_id":"Основная деятельность","is_reg_project":false}],"start_amount":171.93,"stock":"Томил_ГП","top_num_typ_code":1,"updated_at":"2025-05-13T21:12:55.505Z","warehouse_status_code":"Отгружено без отклонений","sent_to_crm":"2025-05-06T19:39:48.907Z"}]}, error: MoleculerServerError: AxiosError: Request failed with status code 400, stack: MoleculerServerError: AxiosError: Request failed with status code 400
+    at Service.handler (/app/services/crm.service.js:199:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /app/middlewares/metricsMiddleware.js:16:17
+    at async /app/services/crm.service.js:119:6
+    at async Promise.all (index 1)
+    at async Service.crmLoop (/app/services/crm.service.js:117:4)
+    at async Service.crmStartLoop (/app/services/crm.service.js:40:5)
+
+STACK TRACE:
+stack: MoleculerServerError: AxiosError: Request failed with status code 400
+    at Service.handler (/app/services/crm.service.js:199:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /app/middlewares/metricsMiddleware.js:16:17
+    at async /app/services/crm.service.js:119:6
+    at async Promise.all (index 1)
+    at async Service.crmLoop (/app/services/crm.service.js:117:4)
+    at async Service.crmStartLoop (/app/services/crm.service.js:40:5)
+
+CODE CONTEXT:
+Code Snippet:
+module.exports = [
+	{
+		localAction(next, action) {
+			return async function (ctx) {
+				const metricName = `${action.name.replaceAll('$', '')}.duration`
+				if (!ctx.broker.metrics.store.has(metricName)) {
+					ctx.broker.metrics.register({
+						type: 'gauge',
+						name: metricName,
+						description: 'Action time duration',
+						unit: 'millisecond'
+					})
+				}
+
+				const time = Date.now()
+				const res = await next(ctx)
+				const duration = Date.now() - time
+
+				ctx.broker.metrics.set(metricName, duration)
+				return res
+			}
+		}
+	},
+	{
+		localChannel(next, channel) {
+			return async (msg, raw) => {
+				try {
+					await next(msg, raw)
+				} catch (err) {
+					const metricName = `${channel.group}.${channel.name}.errors`
+					if (!msg.broker.metrics.store.has(metricName)) {
+						msg.broker.metrics.register({
+							type: 'counter',
+							name: metricName,
+							description: 'Error count',
+							unit: 'pc'
+						})
+					}
+
+					msg.broker.metrics.increment(metricName, null, 1)
+					throw err
+				}
+			}
+		}
+	}
+]
+
+Code Snippet:
+const axios = require('axios')
+const {setInterval} = require('node:timers/promises')
+const { MoleculerServerError } = require('moleculer').Errors
+const crmTablesData = require(`${__dirname}/../configs/crm.config.js`)
+const StateMixin = require('../mixins/state.mixin')
+
+const {
+	CRM_RECORDS_SIZE,
+	CRM_THREADS_COUNT,
+	CRM_AUTH_USER_NAME,
+	CRM_AUTH_USER_PASSWORD,
+	CRM_HOST,
+	CRM_LOGIN_ENDPOINT,
+	CRM_LOGOUT_ENDPOINT,
+	CRM_CLIENTS_TABLE_NAME
+} = process.env
+
+module.exports = {
+	name: 'crm',
+
+	mixins: [StateMixin],
+
+	methods: {
+		split (arr, size) {
+			return arr.reduce(
+				(acc, e, i) => {
+					i % size
+						? acc[acc.length - 1].push(e)
+						: acc.push([e])
+					return acc
+				}, [])
+		},
+		async crmStartLoop() {
+			await this.broker.waitForServices([this.name])
+			for await (const startTime of setInterval(5000, Date.now())) {
+				if (this.broker.stopping) {
+					this.logger.info(`${this.name} service has stopped, exit the loop`)
+					break
+				}
+				await this.crmLoop()
+			}
+			await this.mongoDisconnect()
+		},
+
+		async crmLoop() {
+			const pool = await Promise.all(crmTablesData.map(async tableData => {
+				const {
+					tableName, recordsCount,
+					sendUrl, matchQuery
+				} = tableData
+
+				const records = await this.getRecords(
+					tableName,
+					[
+						{
+							$match: {
+								$and: [
+									matchQuery,
+									{
+										$or: [
+											{
+												crm_status: 'ready'
+											},
+											{
+												crm_status: 'pending',
+												attempts: {
+													$lt: 24
+												},
+												updated_at: {
+													$lt: new Date(new Date().getTime() - 60 * 60 * 1000)
+												}
+											}
+										]
+									}
+								]
+							}
+						},
+						{
+							$sort: {
+								crm_status: 1,
+								updated_at: 1
+							}
+						},
+						{
+							$limit: recordsCount * parseInt(CRM_THREADS_COUNT)
+						}
+					]
+				)
+
+				const recordsBySize = []
+				for (const record of records) {
+					if (JSON.stringify(recordsBySize).length > parseInt(CRM_RECORDS_SIZE) * parseInt(CRM_THREADS_COUNT)) {
+						break
+					}
+					recordsBySize.push(record)
+				}
+
+				return {tableName, sendUrl, recordsBySize}
+			}))
+
+			const chunks = pool.reduce((acc, tablePool) => {
+				const splittedRecordsBySize = this.split(tablePool.recordsBySize, Math.ceil(tablePool.recordsBySize.length / parseInt(CRM_THREADS_COUNT)))
+				for (let i = 0; i < splittedRecordsBySize.length; i++) {
+					if (!acc[i]) {
+						acc[i] = {}
+					}
+					if (!acc[i][tablePool.tableName]) {
+						acc[i][tablePool.tableName] = {}
+					}
+
+					acc[i][tablePool.tableName].sendUrl = tablePool.sendUrl
+					acc[i][tablePool.tableName].records = splittedRecordsBySize[i]
+				}
+				return acc
+			}, [])
+
+			await Promise.all(chunks.map(async chunk => {
+				for (const key of Object.keys(chunk)) {
+					await this.broker.call(`${this.name}.crmProcess`, {
+						tableName: key,
+						sendUrl: chunk[key].sendUrl,
+						records: chunk[key].records
+					})
+				}
+			}))
+		},
+		async openSession() {
+			const crmAuthRes = await axios.post(CRM_HOST + CRM_LOGIN_ENDPOINT, {
+				UserName: CRM_AUTH_USER_NAME,
+				UserPassword: CRM_AUTH_USER_PASSWORD
+			})
+
+			if (crmAuthRes.status !== 200 || !crmAuthRes.data || crmAuthRes.data.Code !== 0) {
+				throw new MoleculerServerError(`CRM login status is ${crmAuthRes.status}`)
+			}
+
+			const cookies = crmAuthRes?.headers?.['set-cookie'].map(val => val.split(';')[0])
+			const crmCsrfCookieArray = crmAuthRes?.headers?.['set-cookie'].find(val => val.startsWith('BPMCSRF')).split(';')
+			const crmCsrfHeaderArray = crmCsrfCookieArray.find(val => val.startsWith('BPMCSRF')).split('=')
+
+			this.logger.info(`SESSION OPENED at ${new Date()}`)
+			return {cookies, crmCsrfHeaderArray}
+		},
+		async upload(tableName, cookies, crmCsrfHeaderArray, records, sendingEndpoint) {
+			const crmRes = await axios.post(sendingEndpoint,
+				records,
+				{
+					withCredentials: true,
+					headers: {
+						[crmCsrfHeaderArray[0]]: crmCsrfHeaderArray[1],
+						Cookie: cookies.join(', ')
+					}
+				})
+			if (!crmRes.data.success) {
+				throw new MoleculerServerError(`crmRes.data.success: ${crmRes.data.success}`)
+			}
+			cookies[0] = (crmRes?.headers?.['set-cookie'].map(val => val.split(';')[0])).join('')
+			this.logger.info(`${tableName} posted OK at ${new Date()} - success: ${crmRes.data.success}, created: ${crmRes.data.created}, updated: ${crmRes.data.updated}, payload: ${JSON.stringify(records)}`)
+			return cookies
+		},
+		async closeSession(cookies, crmCsrfHeaderArray) {
+			const logoutRes = await axios.post(CRM_HOST + CRM_LOGOUT_ENDPOINT,
+				{},
+				{
+					headers: {
+						[crmCsrfHeaderArray[0]]: crmCsrfHeaderArray[1],
+						Cookie: cookies.join(', ')
+					}
+				})
+			this.logger.info(`Logout status: ${logoutRes?.status || null}`)
+			this.logger.info(`Logout statusText: ${logoutRes?.statusText || null}`)
+			this.logger.info(`SESSION CLOSED at ${new Date()}`)
+		}
+	},
+
+	actions: {
+		crmProcess: {
+			timeout: 5 * 60 * 1000,
+			retryPolicy: {
+				enabled: false
+			},
+			async handler(ctx) {
+				this.logger.info(`Action ${ctx.action.name} input: ${JSON.stringify(ctx.params)}`)
+				const {tableName, sendUrl, records} = ctx.params
+				await this.updateRecords(
+					tableName,
+					{recid: {$in: records.map(res => res.recid)} },
+					{$inc: {attempts: 1}, $set: {crm_status: 'pending', updated_at: new Date()}}
+				)
+
+				let {cookies, crmCsrfHeaderArray} = await this.openSession()
+				try {
+					cookies = await this.upload(tableName, cookies, crmCsrfHeaderArray, records, sendUrl)
+				} catch (e) {
+					if (e?.code === 504) {
+						this.logger.error(`CRM upload request is timed out with payload: ${JSON.stringify(records, null, 2)}`)
+					} else {
+						await this.closeSession(cookies, crmCsrfHeaderArray)
+						throw new MoleculerServerError(e)
+					}
+				}
+
+				await this.closeSession(cookies, crmCsrfHeaderArray)
+				await this.updateRecords(
+					tableName,
+					{recid: {$in: records.map(res => res.recid)} },
+					{$set: {crm_status: 'success', sent_to_crm: new Date(), updated_at: new Date(), attempts: 1}}
+				)
+			}
+		}
+	},
+
+	async started() {
+		this.crmStartLoop()
+	}
+}
+
+
+INSTRUCTIONS:
+Please provide:
+1. A direct answer to the user's question, if possible (e.g., confirmation of an event or status). If the logs contain information that directly answers the user's question, state it clearly.
+2. A concise description of what these logs represent, suitable for a business user.
+3. Technical context from the codebase, if applicable (relevant files, functions, or code paths).
+4. Exact IDs affected by the error, if applicable. Pay special attention to:
+   - Order IDs (recid, order_number)
+   - MongoDB IDs (_id)
+   - Contract numbers
+   - Invoice numbers
+   - Product record IDs (rec_id)
+
+Focus on providing a clear and direct response to the user's question, supplemented by technical insights when necessary. Make sure to explicitly list all relevant identifiers from the error payload.

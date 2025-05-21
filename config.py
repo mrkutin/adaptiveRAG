@@ -62,6 +62,18 @@ class Settings(BaseSettings):
     opensearch_verify_certs: bool = Field(json_schema_extra={"env": "OPENSEARCH_VERIFY_CERTS"})
     opensearch_query_size: int = Field(default=10, json_schema_extra={"env": "OPENSEARCH_QUERY_SIZE"})
     
+    # MongoDB settings
+    mongodb_hosts: List[str] = Field(default=["rc1a-f63tuonbafbitiww.mdb.yandexcloud.net:27018"], json_schema_extra={"env": "MONGODB_HOSTS"})
+    mongodb_username: str = Field(default="moleculer_state_replica_user", json_schema_extra={"env": "MONGODB_USERNAME"})
+    mongodb_password: str = Field(default="Ne2iQ13ThLiZ5DMtpo7iTBotBR2M42Dh", json_schema_extra={"env": "MONGODB_PASSWORD"})
+    mongodb_database: str = Field(default="moleculer_state_replica", json_schema_extra={"env": "MONGODB_DATABASE"})
+    mongodb_replica_set: str = Field(default="rs01", json_schema_extra={"env": "MONGODB_REPLICA_SET"})
+    mongodb_auth_source: str = Field(default="admin", json_schema_extra={"env": "MONGODB_AUTH_SOURCE"})
+    mongodb_query_limit: int = Field(default=10, json_schema_extra={"env": "MONGODB_QUERY_LIMIT"})
+    mongodb_use_ssl: bool = Field(default=True, json_schema_extra={"env": "MONGODB_USE_SSL"})
+    mongodb_verify_certs: bool = Field(default=True, json_schema_extra={"env": "MONGODB_VERIFY_CERTS"})
+    mongodb_ca_cert_path: str = Field(default="YandexInternalRootCA.crt", json_schema_extra={"env": "MONGODB_CA_CERT_PATH"})
+    
     # Application settings
     debug: bool = Field(default=False, json_schema_extra={"env": "DEBUG"})
     log_level: str = Field(default="INFO", json_schema_extra={"env": "LOG_LEVEL"})
