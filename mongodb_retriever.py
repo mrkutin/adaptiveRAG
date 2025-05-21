@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -9,6 +9,8 @@ from pprint import pformat
 from config import settings
 import certifi
 from mongodb_query_constructor import MongoDBQueryConstructor
+import asyncio
+import time
 
 
 class MongoDBRetriever(BaseRetriever):
@@ -111,59 +113,70 @@ class MongoDBRetriever(BaseRetriever):
         print(f"--- RETRIEVED {len(all_docs)} documents total")
         return all_docs
 
+    async def _search_collection(self, collection_name: str, query: str) -> List[Document]:
+        """Search a single collection and return documents."""
+        # Get collection config
+        config = self._query_constructor.get_collection_config(collection_name)
+        
+        # Build query for this collection
+        mongo_query = await self._query_constructor.aconstruct_query(query, collection_name)
+        print(f"MongoDB query for {collection_name}: {pformat(mongo_query)}")
+        print("--------------------------------")
+        
+        # Execute search
+        collection = self._aclient[self.database][collection_name]
+        cursor = collection.find(mongo_query).limit(self.mongodb_query_limit)
+
+        # Convert MongoDB results to Documents
+        docs = []
+        async for doc in cursor:
+            # Extract content and metadata based on collection config
+            content = doc.get(config["content_field"], "")
+            if not content and "inventcontent" in doc:
+                content = doc["inventcontent"].get("notes", "")
+            
+            metadata = {}
+            for field in config["metadata_fields"]:
+                if "." in field:
+                    # Handle nested fields
+                    parts = field.split(".")
+                    value = doc
+                    for part in parts:
+                        if isinstance(value, dict):
+                            value = value.get(part, "")
+                        else:
+                            value = ""
+                            break
+                    metadata[field] = value
+                else:
+                    metadata[field] = doc.get(field, "")
+            
+            metadata["collection"] = collection_name
+            
+            docs.append(
+                Document(
+                    page_content=content,
+                    metadata=metadata
+                )
+            )
+        
+        return docs
+
     async def _aget_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> List[Document]:
         """Search documents in MongoDB asynchronously."""
-        all_docs = []
+        # Create tasks for searching each collection in parallel
+        tasks = [
+            self._search_collection(collection_name, query)
+            for collection_name in self._query_constructor.collection_configs.keys()
+        ]
         
-        # Search in each configured collection
-        for collection_name in self._query_constructor.collection_configs.keys():
-            print(f"\nSearching in collection: {collection_name}")
-            
-            # Get collection config
-            config = self._query_constructor.get_collection_config(collection_name)
-            
-            # Build query for this collection
-            mongo_query = await self._query_constructor.aconstruct_query(query, collection_name)
-            print(f"MongoDB query: {pformat(mongo_query)}")
-            print("--------------------------------")
-            
-            # Execute search
-            collection = self._aclient[self.database][collection_name]
-            cursor = collection.find(mongo_query).limit(self.mongodb_query_limit)
-
-            # Convert MongoDB results to Documents
-            async for doc in cursor:
-                # Extract content and metadata based on collection config
-                content = doc.get(config["content_field"], "")
-                if not content and "inventcontent" in doc:
-                    content = doc["inventcontent"].get("notes", "")
-                
-                metadata = {}
-                for field in config["metadata_fields"]:
-                    if "." in field:
-                        # Handle nested fields
-                        parts = field.split(".")
-                        value = doc
-                        for part in parts:
-                            if isinstance(value, dict):
-                                value = value.get(part, "")
-                            else:
-                                value = ""
-                                break
-                        metadata[field] = value
-                    else:
-                        metadata[field] = doc.get(field, "")
-                
-                metadata["collection"] = collection_name
-                
-                all_docs.append(
-                    Document(
-                        page_content=content,
-                        metadata=metadata
-                    )
-                )
+        # Wait for all searches to complete
+        results = await asyncio.gather(*tasks)
+        
+        # Flatten the results
+        all_docs = [doc for docs in results for doc in docs]
         
         print(f"--- RETRIEVED {len(all_docs)} documents total")
         return all_docs
@@ -171,34 +184,86 @@ class MongoDBRetriever(BaseRetriever):
 
 # Example usage:
 if __name__ == "__main__":
-    retriever = MongoDBRetriever()
-    
-    tests = [
-        # Items collection tests
-        # "Find item with ISBN 978-5-9963-5562-4",
-        # "Show items by author Репкин",
-        # "Find items about Букварь",
+    def run_sync_tests():
+        print("\n=== Running Synchronous Tests ===")
+        start_time = time.time()
         
-        # CRM Agreements collection tests
-        # "Find agreement with code PSVK460534",
-       str("Show agreements for customer К0015433"),
-        # "Find agreements with document title A0053335",
-        # "Show agreements in classification Бюджетные заказы",
-        # "Find agreements with GAK 39286",
-        # "Show agreements with CFO 020002",
-        # "Find agreements created on 2023-05-05",
-        # "Show agreements with delivery date 2023-09-30",
-        # "Find agreements with signing status 4",
-        # "Show agreements with CRM status success",
-        # "Find agreements with document reference Контракт № A0053335"
-    ]
+        retriever = MongoDBRetriever()
+        tests = [
+            # Items collection tests
+            # "Find item with ISBN 978-5-9963-5562-4",
+            # "Show items by author Репкин",
+            # "Find items about Букварь",
+            
+            # CRM Agreements collection tests
+            # "Find agreement with code PSVK460534",
+            "Show agreements for customer К0015433",
+            # "Find agreements with document title A0053335",
+            # "Show agreements in classification Бюджетные заказы",
+            # "Find agreements with GAK 39286",
+            # "Show agreements with CFO 020002",
+            # "Find agreements created on 2023-05-05",
+            # "Show agreements with delivery date 2023-09-30",
+            # "Find agreements with signing status 4",
+            # "Show agreements with CRM status success",
+            # "Find agreements with document reference Контракт № A0053335"
+        ]
 
-    for test in tests:
-        print(f"\nTest: {test}")
-        print("--------------------------------")
-        docs = retriever.invoke(test)
-        for doc in docs:
-            print(f"Collection: {doc.metadata.get('collection')}")
-            print(f"Content: {doc.page_content[:200]}...")
-            print(f"Metadata: {pformat(doc.metadata)}")
-            print("--------------------------------") 
+        for test in tests:
+            print(f"\nTest: {test}")
+            print("--------------------------------")
+            docs = retriever.invoke(test)
+            for doc in docs:
+                print(f"Collection: {doc.metadata.get('collection')}")
+                print(f"Content: {doc.page_content[:200]}...")
+                print(f"Metadata: {pformat(doc.metadata)}")
+                print("--------------------------------")
+        
+        end_time = time.time()
+        print(f"\nSynchronous execution time: {end_time - start_time:.2f} seconds")
+
+    async def run_async_tests():
+        print("\n=== Running Asynchronous Tests ===")
+        start_time = time.time()
+        
+        retriever = MongoDBRetriever()
+        tests = [
+            # Items collection tests
+            # "Find item with ISBN 978-5-9963-5562-4",
+            # "Show items by author Репкин",
+            # "Find items about Букварь",
+            
+            # CRM Agreements collection tests
+            # "Find agreement with code PSVK460534",
+            "Show agreements for customer К0015433",
+            # "Find agreements with document title A0053335",
+            # "Show agreements in classification Бюджетные заказы",
+            # "Find agreements with GAK 39286",
+            # "Show agreements with CFO 020002",
+            # "Find agreements created on 2023-05-05",
+            # "Show agreements with delivery date 2023-09-30",
+            # "Find agreements with signing status 4",
+            # "Show agreements with CRM status success",
+            # "Find agreements with document reference Контракт № A0053335"
+        ]
+
+        # Run all tests in parallel
+        tasks = [retriever.ainvoke(test) for test in tests]
+        results = await asyncio.gather(*tasks)
+        
+        # Process results
+        for test, docs in zip(tests, results):
+            print(f"\nTest: {test}")
+            print("--------------------------------")
+            for doc in docs:
+                print(f"Collection: {doc.metadata.get('collection')}")
+                print(f"Content: {doc.page_content[:200]}...")
+                print(f"Metadata: {pformat(doc.metadata)}")
+                print("--------------------------------")
+        
+        end_time = time.time()
+        print(f"\nAsynchronous execution time: {end_time - start_time:.2f} seconds")
+
+    # Run both sync and async tests
+    run_sync_tests()
+    asyncio.run(run_async_tests()) 
